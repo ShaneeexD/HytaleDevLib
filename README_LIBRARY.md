@@ -52,6 +52,25 @@ Type-safe ECS component operations using ComponentType for proper API usage.
 - Reading item data from ground items
 - Any ECS component manipulation
 
+---
+
+### 4. EntityHelper
+Fundamental entity operations and spatial queries.
+
+**What it does:**
+- Find players by name or UUID
+- Get entity positions and calculate distances
+- Teleport entities to locations
+- Find players within radius of a position or entity
+- Check entity existence and type
+
+**When to use:**
+- Finding specific players in the world
+- Proximity detection (players near a location)
+- Teleportation mechanics
+- Distance-based game logic
+- Entity validation and queries
+
 ## Discovered API Information
 
 ### Working Events
@@ -223,6 +242,106 @@ WorldHelper.waitTicks(world, 20, () -> {
 ```
 
 **Note:** The tick tracker uses a background timer that polls `world.getTick()` every 50ms and executes callbacks on the world's main thread for thread safety. The `waitTicks` method creates a self-canceling timer for one-time execution.
+
+---
+
+### EntityHelper Methods
+
+#### `getPlayerByName(world, name)`
+Find a player by their display name (case-insensitive).
+
+```java
+Entity player = EntityHelper.getPlayerByName(world, "Se7enity");
+if (player != null) {
+    WorldHelper.log(world, "Found player: " + EntityHelper.getName(player));
+}
+```
+
+#### `getPlayerByUUID(world, uuid)`
+Find a player by their UUID.
+
+```java
+UUID playerUuid = UUID.fromString("c3257f18-4326-4089-9231-60120125d5d7");
+Entity player = EntityHelper.getPlayerByUUID(world, playerUuid);
+```
+
+#### `getPosition(entity)` / `teleport(entity, position)`
+Get or set entity positions.
+
+```java
+// Get position
+Vector3d pos = EntityHelper.getPosition(player);
+WorldHelper.log(world, "Player at: " + pos.getX() + ", " + pos.getY() + ", " + pos.getZ());
+
+// Teleport to position
+EntityHelper.teleport(player, new Vector3d(100, 64, 100));
+
+// Teleport to coordinates
+EntityHelper.teleport(player, 100, 64, 100);
+```
+
+#### `getDistance(entity1, entity2)` / `getDistance(entity, position)`
+Calculate distances between entities or positions.
+
+```java
+// Distance between two players
+double distance = EntityHelper.getDistance(player1, player2);
+WorldHelper.log(world, "Distance: " + distance + " blocks");
+
+// Distance to a location
+Vector3d spawn = new Vector3d(0, 64, 0);
+double distanceToSpawn = EntityHelper.getDistance(player, spawn);
+```
+
+#### `getPlayersInRadius(world, center, radius)` / `getPlayersInRadius(entity, radius)`
+Find all players within a radius.
+
+```java
+// Players within 50 blocks of a position
+Vector3d center = new Vector3d(100, 64, 100);
+List<Entity> nearbyPlayers = EntityHelper.getPlayersInRadius(world, center, 50.0);
+
+// Players within 10 blocks of an entity
+List<Entity> closeBy = EntityHelper.getPlayersInRadius(targetEntity, 10.0);
+
+// Example: Broadcast to nearby players
+for (Entity nearby : nearbyPlayers) {
+    // Send message to each nearby player
+}
+```
+
+#### `isWithinDistance(entity, position, distance)`
+Check if an entity is within a certain distance.
+
+```java
+Vector3d checkpoint = new Vector3d(200, 64, 200);
+if (EntityHelper.isWithinDistance(player, checkpoint, 5.0)) {
+    WorldHelper.broadcastMessage(world, Message.raw("Player reached checkpoint!"));
+}
+
+// Check distance between two entities
+if (EntityHelper.isWithinDistance(player, boss, 20.0)) {
+    // Player is within boss aggro range
+}
+```
+
+#### `isPlayer(entity)` / `exists(entity)` / `getName(entity)`
+Entity validation and information.
+
+```java
+// Check if entity is a player
+if (EntityHelper.isPlayer(entity)) {
+    WorldHelper.log(world, "This is a player!");
+}
+
+// Check if entity still exists
+if (EntityHelper.exists(entity)) {
+    // Entity is valid and not removed
+}
+
+// Get entity name
+String name = EntityHelper.getName(entity);
+```
 
 ---
 
