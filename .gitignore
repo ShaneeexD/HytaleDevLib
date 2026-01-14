@@ -41,3 +41,25 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Development/Testing Files ###
+# Decompiled source files (for reference only)
+/decompiled/
+
+# Test plugins (not part of library distribution)
+src/main/java/org/grounditems/plugin/TestPlugin.java
+src/main/java/org/grounditems/plugin/GroundItemsPlugin.java
+src/main/java/org/grounditems/plugin/GroundItemsCommand.java
+src/main/java/org/grounditems/plugin/GroundItemsEventHandler.java
+src/main/java/org/grounditems/plugin/systems/
+
+# Development progress tracking
+PROGRESS.md
+API_REFERENCE.md
+
+# Other
+/universe
+/com
+/logs
+/mods
+.cache

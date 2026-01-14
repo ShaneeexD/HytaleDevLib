@@ -1,11 +1,11 @@
 {
-    "Group": "Example",
-    "Name": "ExamplePlugin",
-    "Version": "0.0.2",
-    "Description": "An example plugin for HyTale!",
+    "Group": "HytaleDevLib",
+    "Name": "HytaleDevLib",
+    "Version": "0.1.3",
+    "Description": "Developer utility library for Hytale modding with helper classes and API utilities",
     "Authors": [
         {
-            "Name": "It's you!"
+            "Name": "ShaneeexD"
         }
     ],
     "Website": "example.org",
@@ -17,6 +17,6 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "org.example.plugin.ExamplePlugin",
+    "Main": "org.grounditems.plugin.TestPlugin",
     "IncludesAssetPack": true
 }
