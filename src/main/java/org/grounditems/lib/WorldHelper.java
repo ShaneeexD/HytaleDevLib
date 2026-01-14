@@ -237,4 +237,48 @@ public class WorldHelper {
             tracker.stop();
         }
     }
+    
+    /**
+     * Wait for a specified number of ticks before executing a callback.
+     * Useful for delayed actions after events.
+     * 
+     * Example: Wait 60 ticks (3 seconds) after player joins before sending welcome message
+     * 
+     * @param world The world
+     * @param ticks Number of ticks to wait
+     * @param callback Callback to execute after the delay
+     */
+    public static void waitTicks(World world, int ticks, Runnable callback) {
+        if (ticks <= 0) {
+            // Execute immediately if no delay
+            executeOnWorldThread(world, callback);
+            return;
+        }
+        
+        // Create a one-time delayed task using Timer
+        java.util.Timer timer = new java.util.Timer("WorldHelper-WaitTicks", true);
+        final long startTick = world.getTick();
+        final long targetTick = startTick + ticks;
+        
+        timer.scheduleAtFixedRate(new java.util.TimerTask() {
+            @Override
+            public void run() {
+                long currentTick = world.getTick();
+                if (currentTick >= targetTick) {
+                    // Execute callback on world thread
+                    world.execute(() -> {
+                        try {
+                            callback.run();
+                        } catch (Exception e) {
+                            world.getLogger().at(Level.WARNING)
+                                .log("Error in waitTicks callback: " + e.getMessage());
+                        }
+                    });
+                    
+                    // Cancel this timer after execution
+                    timer.cancel();
+                }
+            }
+        }, 0, 50); // Check every 50ms
+    }
 }

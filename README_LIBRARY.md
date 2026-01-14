@@ -195,7 +195,34 @@ public void onDisable() {
 }
 ```
 
-**Note:** The tick tracker uses a background timer that polls `world.getTick()` every 50ms and executes callbacks on the world's main thread for thread safety.
+#### `waitTicks(world, ticks, callback)`
+Wait for a specified number of ticks before executing a callback. Perfect for delayed actions.
+
+```java
+// Player joins -> wait 3 seconds (60 ticks) -> send welcome message
+EventHelper.onPlayerJoinWorld(plugin, world -> {
+    WorldHelper.waitTicks(world, 60, () -> {
+        WorldHelper.broadcastMessage(world, Message.raw("Welcome to the server!"));
+    });
+});
+
+// Wait 5 seconds (100 ticks) before spawning an entity
+WorldHelper.waitTicks(world, 100, () -> {
+    // Spawn entity, trigger event, etc.
+    WorldHelper.log(world, "Delayed action executed!");
+});
+
+// Chain multiple delays
+WorldHelper.waitTicks(world, 20, () -> {
+    WorldHelper.log(world, "After 1 second");
+    
+    WorldHelper.waitTicks(world, 20, () -> {
+        WorldHelper.log(world, "After 2 seconds total");
+    });
+});
+```
+
+**Note:** The tick tracker uses a background timer that polls `world.getTick()` every 50ms and executes callbacks on the world's main thread for thread safety. The `waitTicks` method creates a self-canceling timer for one-time execution.
 
 ---
 
