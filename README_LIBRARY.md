@@ -339,9 +339,37 @@ if (EntityHelper.exists(entity)) {
     // Entity is valid and not removed
 }
 
-// Get entity name
+// Get entity name (retrieves username from PlayerRef for players)
 String name = EntityHelper.getName(entity);
+WorldHelper.log(world, "Player name: " + name);
 ```
+
+**Note:** `getName()` uses the ECS system to retrieve player usernames from the `PlayerRef` component, which stores the player's username, UUID, and language information.
+
+#### `getAllEntities(world)` / `getClosestEntity(...)`
+Entity iteration and proximity searches.
+
+```java
+// Get all loaded entities (currently returns only players - WIP for full ECS iteration)
+List<Entity> allEntities = EntityHelper.getAllEntities(world);
+WorldHelper.log(world, "Total entities: " + allEntities.size());
+
+// Find closest entity to a position
+Vector3d searchPos = new Vector3d(100, 64, 100);
+Entity closest = EntityHelper.getClosestEntity(world, searchPos);
+if (closest != null) {
+    WorldHelper.log(world, "Closest entity: " + EntityHelper.getName(closest));
+}
+
+// Find closest entity to another entity within range
+Entity nearbyEntity = EntityHelper.getClosestEntity(player, 50.0);
+if (nearbyEntity != null) {
+    double distance = EntityHelper.getDistance(player, nearbyEntity);
+    WorldHelper.log(world, "Found entity " + distance + " blocks away");
+}
+```
+
+**Note:** `getAllEntities()` uses reflection to access the `EntityStore`'s internal `entitiesByUuid` map, which contains all loaded entities in the world. This includes players, NPCs, items, and all other entity types. If reflection fails (e.g., due to security restrictions), it falls back to returning only players.
 
 ---
 

@@ -223,37 +223,64 @@ public class EntityHelper {
     }
     
     /**
-     * Get the name of an entity (player username for players).
+     * Get the name of an entity (player username for players, display name for others).
      * For players, retrieves the username from the PlayerRef component.
+     * For other entities, attempts to retrieve from DisplayNameComponent.
      * 
      * @param entity The entity
-     * @return Player username, or "Unknown" if not available
+     * @return Entity name, or "Unknown" if not available
      */
     public static String getName(Entity entity) {
         if (entity == null) {
             return "Unknown";
         }
         
-        // Try to get PlayerRef component for players
         try {
             World world = entity.getWorld();
-            if (world != null && isPlayer(entity)) {
-                com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
-                    world.getEntityStore().getStore();
-                com.hypixel.hytale.component.ComponentType<com.hypixel.hytale.server.core.universe.world.storage.EntityStore, 
-                    com.hypixel.hytale.server.core.universe.PlayerRef> playerRefType = 
-                    com.hypixel.hytale.server.core.universe.PlayerRef.getComponentType();
-                
-                com.hypixel.hytale.server.core.universe.PlayerRef playerRef = 
-                    store.getComponent(entity.getReference(), playerRefType);
-                
-                if (playerRef != null) {
-                    String username = playerRef.getUsername();
-                    if (username != null && !username.isEmpty()) {
-                        return username;
+            if (world == null) {
+                return "Unknown";
+            }
+            
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
+                world.getEntityStore().getStore();
+            
+            // Try PlayerRef for players
+            if (isPlayer(entity)) {
+                try {
+                    com.hypixel.hytale.component.ComponentType<com.hypixel.hytale.server.core.universe.world.storage.EntityStore, 
+                        com.hypixel.hytale.server.core.universe.PlayerRef> playerRefType = 
+                        com.hypixel.hytale.server.core.universe.PlayerRef.getComponentType();
+                    
+                    com.hypixel.hytale.server.core.universe.PlayerRef playerRef = 
+                        store.getComponent(entity.getReference(), playerRefType);
+                    
+                    if (playerRef != null) {
+                        String username = playerRef.getUsername();
+                        if (username != null && !username.isEmpty()) {
+                            return username;
+                        }
                     }
+                } catch (Exception e) {
+                    // Fall through to DisplayNameComponent
                 }
             }
+            
+            // Try DisplayNameComponent for all entities (including NPCs)
+            try {
+                com.hypixel.hytale.component.ComponentType<com.hypixel.hytale.server.core.universe.world.storage.EntityStore, 
+                    com.hypixel.hytale.server.core.modules.entity.component.DisplayNameComponent> displayNameType = 
+                    com.hypixel.hytale.server.core.modules.entity.component.DisplayNameComponent.getComponentType();
+                
+                com.hypixel.hytale.server.core.modules.entity.component.DisplayNameComponent displayNameComp = 
+                    store.getComponent(entity.getReference(), displayNameType);
+                
+                if (displayNameComp != null && displayNameComp.getDisplayName() != null) {
+                    return displayNameComp.getDisplayName().toString();
+                }
+            } catch (Exception e) {
+                // Fall through to legacy method
+            }
+            
         } catch (Exception e) {
             // Fall through to legacy method
         }
@@ -291,5 +318,133 @@ public class EntityHelper {
      */
     public static boolean exists(Entity entity) {
         return entity != null && !entity.wasRemoved();
+    }
+    
+    /**
+     * Get all loaded entities in the world.
+     * 
+     * This method accesses the EntityStore's internal entity map to retrieve
+     * all currently loaded entities. It uses reflection to access the entitiesByUuid
+     * field and converts the Refs to Entity objects.
+     * 
+     * @param world The world
+     * @return List of all loaded entities
+     */
+    public static java.util.List<Entity> getAllEntities(World world) {
+        java.util.List<Entity> entities = new java.util.ArrayList<>();
+        
+        if (world == null) {
+            return entities;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+            
+            // Access the entitiesByUuid map using reflection
+            java.lang.reflect.Field entitiesField = entityStore.getClass().getDeclaredField("entitiesByUuid");
+            entitiesField.setAccessible(true);
+            
+            @SuppressWarnings("unchecked")
+            java.util.Map<java.util.UUID, com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>> entitiesMap = 
+                (java.util.Map<java.util.UUID, com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>>) 
+                entitiesField.get(entityStore);
+            
+            // Convert UUIDs to Entities
+            for (java.util.UUID uuid : entitiesMap.keySet()) {
+                try {
+                    Entity entity = world.getEntity(uuid);
+                    if (entity != null && !entity.wasRemoved()) {
+                        entities.add(entity);
+                    }
+                } catch (Exception e) {
+                    // Skip invalid entities
+                }
+            }
+            
+        } catch (Exception e) {
+            // If reflection fails, fall back to players only
+            try {
+                for (Entity player : world.getPlayers()) {
+                    entities.add(player);
+                }
+            } catch (Exception ex) {
+                // Return empty list
+            }
+        }
+        
+        return entities;
+    }
+    
+    /**
+     * Find the closest entity to a given position.
+     * Searches through all loaded entities in the world.
+     * 
+     * @param world The world
+     * @param position The position to search from
+     * @param excludeEntity Optional entity to exclude from search (e.g., the source entity)
+     * @return Closest entity, or null if none found
+     */
+    public static Entity getClosestEntity(World world, Vector3d position, Entity excludeEntity) {
+        if (world == null || position == null) {
+            return null;
+        }
+        
+        Entity closest = null;
+        double closestDistance = Double.MAX_VALUE;
+        
+        for (Entity entity : getAllEntities(world)) {
+            // Skip the excluded entity
+            if (excludeEntity != null && entity.equals(excludeEntity)) {
+                continue;
+            }
+            
+            double distance = getDistance(entity, position);
+            if (distance >= 0 && distance < closestDistance) {
+                closest = entity;
+                closestDistance = distance;
+            }
+        }
+        
+        return closest;
+    }
+    
+    /**
+     * Find the closest entity to a given position.
+     * Searches through all loaded entities in the world.
+     * 
+     * @param world The world
+     * @param position The position to search from
+     * @return Closest entity, or null if none found
+     */
+    public static Entity getClosestEntity(World world, Vector3d position) {
+        return getClosestEntity(world, position, null);
+    }
+    
+    /**
+     * Find the closest entity to another entity.
+     * 
+     * @param entity The entity to search from
+     * @param maxDistance Maximum search distance (in blocks)
+     * @return Closest entity within range, or null if none found
+     */
+    public static Entity getClosestEntity(Entity entity, double maxDistance) {
+        Vector3d pos = getPosition(entity);
+        if (pos == null) {
+            return null;
+        }
+        
+        World world = entity.getWorld();
+        Entity closest = getClosestEntity(world, pos);
+        
+        // Exclude the entity itself and check distance
+        if (closest != null && closest.equals(entity)) {
+            return null;
+        }
+        
+        if (closest != null && getDistance(entity, closest) <= maxDistance) {
+            return closest;
+        }
+        
+        return null;
     }
 }
