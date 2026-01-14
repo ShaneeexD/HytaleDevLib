@@ -223,18 +223,44 @@ public class EntityHelper {
     }
     
     /**
-     * Get the name of an entity (display name).
+     * Get the name of an entity (player username for players).
+     * For players, retrieves the username from the PlayerRef component.
      * 
      * @param entity The entity
-     * @return Display name, or "Unknown" if not available
+     * @return Player username, or "Unknown" if not available
      */
     public static String getName(Entity entity) {
         if (entity == null) {
             return "Unknown";
         }
         
+        // Try to get PlayerRef component for players
+        try {
+            World world = entity.getWorld();
+            if (world != null && isPlayer(entity)) {
+                com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
+                    world.getEntityStore().getStore();
+                com.hypixel.hytale.component.ComponentType<com.hypixel.hytale.server.core.universe.world.storage.EntityStore, 
+                    com.hypixel.hytale.server.core.universe.PlayerRef> playerRefType = 
+                    com.hypixel.hytale.server.core.universe.PlayerRef.getComponentType();
+                
+                com.hypixel.hytale.server.core.universe.PlayerRef playerRef = 
+                    store.getComponent(entity.getReference(), playerRefType);
+                
+                if (playerRef != null) {
+                    String username = playerRef.getUsername();
+                    if (username != null && !username.isEmpty()) {
+                        return username;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Fall through to legacy method
+        }
+        
+        // Fallback to legacy display name
         String name = entity.getLegacyDisplayName();
-        return name != null ? name : "Unknown";
+        return (name != null && !name.isEmpty()) ? name : "Unknown";
     }
     
     /**
