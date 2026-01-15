@@ -8,7 +8,7 @@
             "Name": "ShaneeexD"
         }
     ],
-    "Website": "example.org",
+    "Website": "https://github.com/ShaneeexD/HytaleDevLib",
     "ServerVersion": "*",
     "Dependencies": {
         
@@ -17,6 +17,5 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "org.hytaledevlib.plugin.TestPlugin",
     "IncludesAssetPack": true
 }
