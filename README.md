@@ -2,17 +2,18 @@
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/ShaneeexD)
 
-A comprehensive utility library and example project for Hytale plugin development, providing tested helpers and utilities that simplify common modding tasks.
+A comprehensive utility library and example project for Hytale plugin development, providing tested helpers and utilities that simplify common modding tasks. Built using decompiled Hytale source code for maximum compatibility and functionality.
 
 ## Documentation
 
 **[View Full Documentation on Wiki →](https://github.com/ShaneeexD/HytaleDevLib/wiki)**
 
 - **[Library Documentation](https://github.com/ShaneeexD/HytaleDevLib/wiki/Library-Documentation)** - Complete API reference with usage examples
+- **[Block Mapping Guide](https://github.com/ShaneeexD/HytaleDevLib/wiki/BLOCK_MAPPING_USAGE)** - 3,951 block names reference
 
 ## Features
 
-HytaleDevLib provides four main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides five main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and player joins
@@ -24,21 +25,26 @@ HytaleDevLib provides four main helper classes that simplify Hytale plugin devel
 - Tick tracking and interval callbacks
 - Player management and messaging
 - Simplified logging with HytaleLogger
+- **Time and day system** - Get/set game time, check day/night, moon phases
+- **Day progress tracking** - Monitor sunlight levels and time of day
 
 ### EntityHelper
 - Player lookup by name or UUID
 - Entity teleportation and distance calculations
 - Proximity searches (players within radius)
 - Entity iteration and type filtering
-- **Player home/respawn position retrieval**
+- Player home/respawn position retrieval
 - Readable NPC type names (e.g., "Cow", "Minnow", "Skeleton_Fighter")
+- **NPC spawning** - Spawn any NPC by role name with proper ECS setup
 
 ### BlockHelper
-- Get and set blocks at any position
+- **Name-based block operations** - Minecraft-style block referencing
+- Get and set blocks at any position with automatic client sync
 - Fill or replace blocks in regions
 - Find blocks by type within radius
 - Count blocks in areas
 - World editing utilities
+- **3,951 block names** - Complete block ID mapping
 
 ### ComponentHelper
 - Type-safe ECS component operations
@@ -49,25 +55,31 @@ HytaleDevLib provides four main helper classes that simplify Hytale plugin devel
 ## Quick Start Examples
 
 ```java
+// Spawn NPCs by name
+Entity cow = EntityHelper.spawnNPC(world, "Cow", new Vector3d(100, 64, 100));
+Entity deer = EntityHelper.spawnNPC(world, "Deer_Doe", 105, 64, 100);
+
+// Set blocks by name (Minecraft-style)
+BlockHelper.setBlockByName(world, x, y, z, "Rock_Stone");
+BlockHelper.fillRegionByName(world, corner1, corner2, "Soil_Grass");
+
+// Check time and spawn mobs at night
+if (WorldHelper.isNighttime(world)) {
+    EntityHelper.spawnNPC(world, "Skeleton_Fighter", x, y, z);
+}
+
+// Get time information
+int hour = WorldHelper.getCurrentHour(world);  // 0-23
+float dayProgress = WorldHelper.getDayProgress(world);  // 0.0-1.0
+int moonPhase = WorldHelper.getMoonPhase(world);  // 0-7
+
+// Set time of day
+WorldHelper.setDayTime(world, 0.5);  // Set to noon
+
 // Detect when players drop items
 EventHelper.onItemDrop(this, (itemId, quantity) -> {
     WorldHelper.log(world, "Dropped: " + itemId + " x" + quantity);
 });
-
-// Teleport all cows to a location
-List<Entity> allEntities = EntityHelper.getAllEntities(world);
-for (Entity entity : allEntities) {
-    if ("Cow".equals(EntityHelper.getEntityType(entity))) {
-        EntityHelper.teleport(entity, new Vector3d(100, 64, 100));
-    }
-}
-
-// Get player's home/respawn location
-Vector3d homePos = EntityHelper.getPlayerHome(player);
-if (homePos != null) {
-    double distance = EntityHelper.getDistance(player, homePos);
-    WorldHelper.log(world, "Distance from home: " + distance + " blocks");
-}
 
 // Run code every 5 seconds (100 ticks)
 WorldHelper.onTickInterval(world, 100, currentTick -> {
