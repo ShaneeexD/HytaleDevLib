@@ -1,5 +1,7 @@
 # HytaleDevLib - Hytale Development Library
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/ShaneeexD)
+
 A comprehensive utility library and example project for Hytale plugin development, providing tested helpers and utilities that simplify common modding tasks.
 
 ## Documentation
