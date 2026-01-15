@@ -598,4 +598,98 @@ public class EntityHelper {
         
         return null;
     }
+    
+    /**
+     * Spawn an NPC entity by role name at a specific position.
+     * This uses the internal NPCPlugin to properly spawn entities with all required components.
+     * 
+     * @param world The world to spawn in
+     * @param roleName The role name (e.g., "Cow", "Deer_Doe", "Skeleton_Fighter")
+     * @param position The spawn position
+     * @return The spawned entity, or null if spawning failed
+     */
+    public static Entity spawnNPC(World world, String roleName, Vector3d position) {
+        return spawnNPC(world, roleName, position, null);
+    }
+    
+    /**
+     * Spawn an NPC entity by role name at a specific position with rotation.
+     * This uses the internal NPCPlugin to properly spawn entities with all required components.
+     * 
+     * @param world The world to spawn in
+     * @param roleName The role name (e.g., "Cow", "Deer_Doe", "Skeleton_Fighter")
+     * @param position The spawn position
+     * @param yaw The yaw rotation in radians (null for default)
+     * @return The spawned entity, or null if spawning failed
+     */
+    public static Entity spawnNPC(World world, String roleName, Vector3d position, Float yaw) {
+        if (world == null || roleName == null || position == null) {
+            return null;
+        }
+        
+        try {
+            // Get NPCPlugin instance
+            com.hypixel.hytale.server.npc.NPCPlugin npcPlugin = com.hypixel.hytale.server.npc.NPCPlugin.get();
+            
+            // Get the role index from the role name
+            int roleIndex = npcPlugin.getIndex(roleName);
+            if (roleIndex < 0) {
+                return null; // Role not found
+            }
+            
+            // Create rotation vector (yaw only, pitch and roll are 0)
+            com.hypixel.hytale.math.vector.Vector3f rotation = yaw != null 
+                ? new com.hypixel.hytale.math.vector.Vector3f(0.0f, yaw, 0.0f)
+                : new com.hypixel.hytale.math.vector.Vector3f(0.0f, 0.0f, 0.0f);
+            
+            // Get the entity store
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
+                world.getEntityStore().getStore();
+            
+            // Spawn the entity using NPCPlugin
+            it.unimi.dsi.fastutil.Pair<
+                com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>,
+                com.hypixel.hytale.server.npc.entities.NPCEntity
+            > result = npcPlugin.spawnEntity(store, roleIndex, position, rotation, null, null);
+            
+            if (result == null) {
+                return null;
+            }
+            
+            // Return the NPCEntity (which extends Entity)
+            return result.second();
+            
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Spawn an NPC entity at coordinates.
+     * 
+     * @param world The world to spawn in
+     * @param roleName The role name (e.g., "Cow", "Deer_Doe", "Skeleton_Fighter")
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The spawned entity, or null if spawning failed
+     */
+    public static Entity spawnNPC(World world, String roleName, double x, double y, double z) {
+        return spawnNPC(world, roleName, new Vector3d(x, y, z), null);
+    }
+    
+    /**
+     * Spawn an NPC entity at coordinates with rotation.
+     * 
+     * @param world The world to spawn in
+     * @param roleName The role name (e.g., "Cow", "Deer_Doe", "Skeleton_Fighter")
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @param yaw The yaw rotation in radians (null for default)
+     * @return The spawned entity, or null if spawning failed
+     */
+    public static Entity spawnNPC(World world, String roleName, double x, double y, double z, Float yaw) {
+        return spawnNPC(world, roleName, new Vector3d(x, y, z), yaw);
+    }
 }
