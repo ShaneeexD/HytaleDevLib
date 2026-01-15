@@ -1,4 +1,4 @@
-package org.grounditems.lib;
+package org.hytaledevlib.lib;
 
 import java.util.HashMap;
 import java.util.Map;

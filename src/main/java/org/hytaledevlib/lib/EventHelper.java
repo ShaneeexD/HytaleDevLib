@@ -1,4 +1,4 @@
-package org.grounditems.lib;
+package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.event.events.entity.LivingEntityInventoryChangeEvent;

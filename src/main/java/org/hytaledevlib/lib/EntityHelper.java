@@ -1,4 +1,4 @@
-package org.grounditems.lib;
+package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.entity.Entity;

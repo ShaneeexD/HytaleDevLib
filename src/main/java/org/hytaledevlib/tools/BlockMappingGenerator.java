@@ -1,4 +1,4 @@
-package org.grounditems.tools;
+package org.hytaledevlib.tools;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -31,7 +31,7 @@ public class BlockMappingGenerator {
         List<BlockMapping> mappings = parseMapping(inputFile);
         
         StringBuilder sb = new StringBuilder();
-        sb.append("package org.grounditems.lib;\n\n");
+        sb.append("package org.hytaledevlib.lib;\n\n");
         sb.append("import java.util.HashMap;\n");
         sb.append("import java.util.Map;\n\n");
         sb.append("/**\n");

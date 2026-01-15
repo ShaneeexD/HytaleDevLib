@@ -1,4 +1,4 @@
-package org.grounditems.lib;
+package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentAccessor;

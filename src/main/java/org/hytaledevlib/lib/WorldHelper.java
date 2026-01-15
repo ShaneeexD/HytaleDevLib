@@ -1,4 +1,4 @@
-package org.grounditems.lib;
+package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.universe.world.World;
