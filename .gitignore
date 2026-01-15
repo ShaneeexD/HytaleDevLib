@@ -63,3 +63,9 @@ API_REFERENCE.md
 /logs
 /mods
 .cache
+auth.enc
+bans.json
+config.json
+config.json.BAK
+permissions.json
+whitelist.json
