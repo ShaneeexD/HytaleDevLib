@@ -3,6 +3,7 @@ package org.grounditems.lib;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
 
@@ -19,6 +20,102 @@ import java.util.List;
  * will fail (return false).</p>
  */
 public class BlockHelper {
+    
+    /**
+     * Get the block name (ID string) from a numeric block ID.
+     * 
+     * @param blockId The numeric block ID
+     * @return The block name/ID string (e.g., "hytale:blocks/stone"), or null if not found
+     */
+    public static String getBlockName(int blockId) {
+        try {
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            return blockType != null ? blockType.getId() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the block name at a specific position.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The block name/ID string, or null if not found or chunk not loaded
+     */
+    public static String getBlockName(World world, Vector3d position) {
+        return getBlockName(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Get the block name at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The block name/ID string, or null if not found or chunk not loaded
+     */
+    public static String getBlockName(World world, int x, int y, int z) {
+        int blockId = getBlock(world, x, y, z);
+        return blockId != 0 ? getBlockName(blockId) : null;
+    }
+    
+    /**
+     * Get the block ID for a given block name using BlockMapping.
+     * This allows working with block names instead of numeric IDs.
+     * 
+     * @param blockName The block name (e.g., "Rock_Stone", "Soil_Grass")
+     * @return The block ID, or -1 if not found
+     */
+    public static int getBlockId(String blockName) {
+        return BlockMapping.getBlockId(blockName);
+    }
+    
+    /**
+     * Get a block by name at a specific position.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The block name, or null if not found or chunk not loaded
+     */
+    public static String getBlockByName(World world, Vector3d position) {
+        return getBlockName(world, position);
+    }
+    
+    /**
+     * Set a block by name at a specific position.
+     * 
+     * @param world The world
+     * @param position The position to set
+     * @param blockName The block name (e.g., "Rock_Stone", "Soil_Grass")
+     * @return true if successful, false otherwise
+     */
+    public static boolean setBlockByName(World world, Vector3d position, String blockName) {
+        int blockId = BlockMapping.getBlockId(blockName);
+        if (blockId == -1) {
+            return false; // Block name not found
+        }
+        return setBlock(world, position, blockId);
+    }
+    
+    /**
+     * Set a block by name at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @param blockName The block name (e.g., "Rock_Stone", "Soil_Grass")
+     * @return true if successful, false otherwise
+     */
+    public static boolean setBlockByName(World world, int x, int y, int z, String blockName) {
+        int blockId = BlockMapping.getBlockId(blockName);
+        if (blockId == -1) {
+            return false; // Block name not found
+        }
+        return setBlock(world, x, y, z, blockId);
+    }
     
     /**
      * Get the block ID at a specific position.
@@ -141,6 +238,65 @@ public class BlockHelper {
      */
     public static boolean isAir(World world, int x, int y, int z) {
         return getBlock(world, x, y, z) == 0;
+    }
+    
+    /**
+     * Replace all blocks of one type with another in a rectangular region (by name).
+     * 
+     * @param world The world
+     * @param pos1 First corner of the region
+     * @param pos2 Second corner of the region
+     * @param oldBlockName The block name to replace (e.g., "Soil_Dirt")
+     * @param newBlockName The block name to replace with (e.g., "Soil_Grass")
+     * @return The number of blocks replaced, or -1 if block names are invalid
+     */
+    public static int replaceBlocksInRegionByName(World world, Vector3d pos1, Vector3d pos2, String oldBlockName, String newBlockName) {
+        int oldBlockId = BlockMapping.getBlockId(oldBlockName);
+        int newBlockId = BlockMapping.getBlockId(newBlockName);
+        
+        if (oldBlockId == -1 || newBlockId == -1) {
+            return -1; // Invalid block names
+        }
+        
+        return replaceBlocksInRegion(world, pos1, pos2, oldBlockId, newBlockId);
+    }
+    
+    /**
+     * Fill a rectangular region with a specific block type (by name).
+     * 
+     * @param world The world
+     * @param pos1 First corner of the region
+     * @param pos2 Second corner of the region
+     * @param blockName The block name to fill with (e.g., "Rock_Stone")
+     * @return The number of blocks set, or -1 if block name is invalid
+     */
+    public static int fillRegionByName(World world, Vector3d pos1, Vector3d pos2, String blockName) {
+        int blockId = BlockMapping.getBlockId(blockName);
+        
+        if (blockId == -1) {
+            return -1; // Invalid block name
+        }
+        
+        return fillRegion(world, pos1, pos2, blockId);
+    }
+    
+    /**
+     * Find all positions of a specific block type within a radius (by name).
+     * 
+     * @param world The world
+     * @param center The center position
+     * @param radius The search radius
+     * @param blockName The block name to search for (e.g., "Ore_Diamond")
+     * @return A list of positions where the block was found, or empty list if block name is invalid
+     */
+    public static List<Vector3i> findNearbyBlocksByName(World world, Vector3d center, int radius, String blockName) {
+        int blockId = BlockMapping.getBlockId(blockName);
+        
+        if (blockId == -1) {
+            return new ArrayList<>(); // Invalid block name
+        }
+        
+        return findNearbyBlocks(world, center, radius, blockId);
     }
     
     /**

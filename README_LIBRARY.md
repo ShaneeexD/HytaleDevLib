@@ -613,23 +613,48 @@ if (itemId != null) {
 
 ### BlockHelper Methods
 
+#### `getBlockName(blockId)` / `getBlockName(world, position)` / `getBlockName(world, x, y, z)`
+Get the human-readable block name from a block ID or position.
+
+```java
+// Get block name from numeric ID
+int blockId = 684;
+String blockName = BlockHelper.getBlockName(blockId);
+WorldHelper.log(world, "Block: " + blockName); // e.g., "hytale:blocks/stone"
+
+// Get block name at a position
+Vector3d pos = new Vector3d(100, 64, 100);
+String name = BlockHelper.getBlockName(world, pos);
+WorldHelper.log(world, "Block at position: " + name);
+
+// Get block name at specific coordinates
+String blockName = BlockHelper.getBlockName(world, 100, 64, 100);
+```
+
+**Note:** Block names are the internal asset IDs (e.g., "hytale:blocks/stone", "hytale:blocks/grass"). This is similar to how `EntityHelper.getEntityType()` returns entity role names.
+
 #### `getBlock(world, position)` / `getBlock(world, x, y, z)`
-Get the block ID at a specific position.
+Get the numeric block ID at a specific position.
 
 ```java
 // Get block at a position
 Vector3d pos = new Vector3d(100, 64, 100);
 int blockId = BlockHelper.getBlock(world, pos);
-WorldHelper.log(world, "Block ID at position: " + blockId);
+WorldHelper.log(world, "Block ID: " + blockId);
 
 // Get block at specific coordinates
 int block = BlockHelper.getBlock(world, 100, 64, 100);
+
+// Combine with getBlockName for readable output
+int blockId = BlockHelper.getBlock(world, pos);
+String blockName = BlockHelper.getBlockName(blockId);
+WorldHelper.log(world, "Block: " + blockId + " (" + blockName + ")");
+```
 
 // Check if a position is air
 if (BlockHelper.isAir(world, pos)) {
     WorldHelper.log(world, "Position is empty!");
 }
-```
 
 #### `setBlock(world, position, blockId)` / `setBlock(world, x, y, z, blockId)`
 Set a block at a specific position.
