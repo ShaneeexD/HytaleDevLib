@@ -499,6 +499,79 @@ public class EntityHelper {
     }
     
     /**
+     * Get the player's respawn/home position.
+     * 
+     * This retrieves the player's respawn position (typically their bed location or world spawn).
+     * Uses the same logic as HomeOrSpawnPoint.respawnPlayer() to get the player's home base.
+     * 
+     * @param player The player entity
+     * @return The player's respawn position as a Transform, or null if not available
+     */
+    public static com.hypixel.hytale.math.vector.Transform getPlayerRespawnPosition(Entity player) {
+        if (player == null || !isPlayer(player)) {
+            return null;
+        }
+        
+        try {
+            World world = player.getWorld();
+            if (world == null) {
+                return null;
+            }
+            
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> playerRef = 
+                player.getReference();
+            String worldName = world.getName();
+            
+            com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
+                entityStore.getStore();
+            
+            // Call Player.getRespawnPosition() static method
+            com.hypixel.hytale.math.vector.Transform respawnTransform = 
+                com.hypixel.hytale.server.core.entity.entities.Player.getRespawnPosition(
+                    playerRef, 
+                    worldName, 
+                    store
+                );
+            
+            return respawnTransform;
+            
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the player's respawn/home position as a Vector3d.
+     * 
+     * Convenience method that returns just the position vector instead of the full Transform.
+     * 
+     * @param player The player entity
+     * @return The player's respawn position, or null if not available
+     */
+    public static com.hypixel.hytale.math.vector.Vector3d getPlayerHome(Entity player) {
+        com.hypixel.hytale.math.vector.Transform transform = getPlayerRespawnPosition(player);
+        if (transform != null) {
+            return transform.getPosition();
+        }
+        return null;
+    }
+    
+    /**
+     * Teleport a player to their home/respawn location.
+     * 
+     * @param player The player to teleport
+     * @return true if teleport was successful, false otherwise
+     */
+    public static boolean teleportPlayerHome(Entity player) {
+        com.hypixel.hytale.math.vector.Vector3d homePos = getPlayerHome(player);
+        if (homePos != null) {
+            return teleport(player, homePos);
+        }
+        return false;
+    }
+    
+    /**
      * Find the closest entity to another entity.
      * 
      * @param entity The entity to search from
