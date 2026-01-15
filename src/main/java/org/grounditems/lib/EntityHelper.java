@@ -223,12 +223,13 @@ public class EntityHelper {
     }
     
     /**
-     * Get the name of an entity (player username for players, display name for others).
+     * Get the name of an entity (player username for players, entity type for others).
      * For players, retrieves the username from the PlayerRef component.
      * For other entities, attempts to retrieve from DisplayNameComponent.
+     * Falls back to entity class name if no display name is available.
      * 
      * @param entity The entity
-     * @return Entity name, or "Unknown" if not available
+     * @return Entity name or type
      */
     public static String getName(Entity entity) {
         if (entity == null) {
@@ -238,7 +239,7 @@ public class EntityHelper {
         try {
             World world = entity.getWorld();
             if (world == null) {
-                return "Unknown";
+                return entity.getClass().getSimpleName();
             }
             
             com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
@@ -275,7 +276,17 @@ public class EntityHelper {
                     store.getComponent(entity.getReference(), displayNameType);
                 
                 if (displayNameComp != null && displayNameComp.getDisplayName() != null) {
-                    return displayNameComp.getDisplayName().toString();
+                    // The Message object is actually a FormattedMessage - use reflection to access rawText
+                    Object message = displayNameComp.getDisplayName();
+                    try {
+                        java.lang.reflect.Field rawTextField = message.getClass().getField("rawText");
+                        String rawText = (String) rawTextField.get(message);
+                        if (rawText != null && !rawText.isEmpty()) {
+                            return rawText;
+                        }
+                    } catch (Exception e) {
+                        // If reflection fails, continue to fallbacks
+                    }
                 }
             } catch (Exception e) {
                 // Fall through to legacy method
@@ -287,7 +298,13 @@ public class EntityHelper {
         
         // Fallback to legacy display name
         String name = entity.getLegacyDisplayName();
-        return (name != null && !name.isEmpty()) ? name : "Unknown";
+        if (name != null && !name.isEmpty()) {
+            return name;
+        }
+        
+        // Final fallback: return entity type (class name)
+        // This is useful for NPCs and other entities that don't have display names set
+        return entity.getClass().getSimpleName();
     }
     
     /**
@@ -318,6 +335,67 @@ public class EntityHelper {
      */
     public static boolean exists(Entity entity) {
         return entity != null && !entity.wasRemoved();
+    }
+    
+    /**
+     * Get the entity type identifier for NPCs.
+     * For NPCs, this returns the role index which identifies the specific NPC type.
+     * For other entities, returns the class name.
+     * 
+     * @param entity The entity
+     * @return Entity type identifier (e.g., "NPC_798" for NPCs, "ItemEntity" for items)
+     */
+    public static String getEntityType(Entity entity) {
+        if (entity == null) {
+            return "Unknown";
+        }
+        
+        String className = entity.getClass().getSimpleName();
+        
+        // For NPCEntity, try to get the role name from the role object
+        if ("NPCEntity".equals(className)) {
+            try {
+                // Access the role field
+                java.lang.reflect.Field roleField = entity.getClass().getDeclaredField("role");
+                roleField.setAccessible(true);
+                Object role = roleField.get(entity);
+                
+                if (role != null) {
+                    // Try to get the roleName field
+                    try {
+                        java.lang.reflect.Field roleNameField = role.getClass().getDeclaredField("roleName");
+                        roleNameField.setAccessible(true);
+                        String roleName = (String) roleNameField.get(role);
+                        
+                        if (roleName != null && !roleName.isEmpty()) {
+                            return roleName;
+                        }
+                    } catch (Exception e) {
+                        // If roleName fails, try roleIndex as fallback
+                    }
+                    
+                    // Fallback: try to get roleIndex
+                    try {
+                        java.lang.reflect.Field roleIndexField = role.getClass().getDeclaredField("roleIndex");
+                        roleIndexField.setAccessible(true);
+                        int roleIndex = roleIndexField.getInt(role);
+                        
+                        if (roleIndex != Integer.MIN_VALUE && roleIndex >= 0) {
+                            return "NPC_" + roleIndex;
+                        }
+                        if (roleIndex == Integer.MIN_VALUE) {
+                            return "NPCEntity_Uninitialized";
+                        }
+                    } catch (Exception e) {
+                        // Fall through to class name
+                    }
+                }
+            } catch (Exception e) {
+                // Fall through to class name
+            }
+        }
+        
+        return className;
     }
     
     /**
