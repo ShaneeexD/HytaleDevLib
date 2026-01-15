@@ -9,7 +9,7 @@ A comprehensive utility library and example project for Hytale plugin developmen
 **[View Full Documentation on Wiki →](https://github.com/ShaneeexD/HytaleDevLib/wiki)**
 
 - **[Library Documentation](https://github.com/ShaneeexD/HytaleDevLib/wiki/Library-Documentation)** - Complete API reference with usage examples
-- **[Block Mapping Guide](https://github.com/ShaneeexD/HytaleDevLib/wiki/BLOCK_MAPPING_USAGE)** - 3,951 block names reference
+- **[Block Mapping Guide](https://github.com/ShaneeexD/HytaleDevLib/wiki/Block-Mapping-Usage)** - 3,951 block names reference
 
 ## Features
 
