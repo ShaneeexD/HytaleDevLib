@@ -21,6 +21,9 @@ import java.util.List;
  */
 public class BlockHelper {
     
+    private static volatile java.lang.reflect.Method CACHED_META_GETTER;
+    private static volatile java.lang.reflect.Method CACHED_DEFAULT_META_GETTER;
+    
     /**
      * Get the block name (ID string) from a numeric block ID.
      * 
@@ -33,6 +36,47 @@ public class BlockHelper {
             return blockType != null ? blockType.getId() : null;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    public static int getDefaultBlockMeta(int blockId) {
+        try {
+            BlockType blockType = BlockType.getAssetMap().getAsset(blockId);
+            if (blockType == null) {
+                return 0;
+            }
+
+            java.lang.reflect.Method getter = CACHED_DEFAULT_META_GETTER;
+            if (getter == null) {
+                getter = findDefaultMetaGetter(blockType.getClass());
+                CACHED_DEFAULT_META_GETTER = getter;
+            }
+
+            if (getter == null) {
+                return 0;
+            }
+
+            Object result = getter.invoke(blockType);
+            if (result instanceof Integer) {
+                return (Integer) result;
+            }
+
+            if (result != null) {
+                for (String methodName : new String[] {"getStateId", "getId", "getIndex"}) {
+                    try {
+                        java.lang.reflect.Method m = result.getClass().getMethod(methodName);
+                        Object r = m.invoke(result);
+                        if (r instanceof Integer) {
+                            return (Integer) r;
+                        }
+                    } catch (NoSuchMethodException ignored) {
+                    }
+                }
+            }
+
+            return 0;
+        } catch (Exception e) {
+            return 0;
         }
     }
     
@@ -187,33 +231,217 @@ public class BlockHelper {
      * @return true if the block was set successfully, false otherwise
      */
     public static boolean setBlock(World world, int x, int y, int z, int blockId) {
+        // Use rotation=0 (no rotation) and filler=0 (no filler)
+        return setBlock(world, x, y, z, blockId, 0, 0);
+    }
+
+    /**
+     * Set a block at specific coordinates with rotation and filler.
+     * This method also sends a ServerSetBlock packet to notify all clients.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @param blockId The block ID to set
+     * @param rotation Block rotation (0-23, typically 0 for no rotation)
+     * @param filler Filler block data (typically 0)
+     * @return true if the block was set successfully, false otherwise
+     */
+    public static boolean setBlock(World world, int x, int y, int z, int blockId, int rotation, int filler) {
         if (world == null || y < 0 || y >= 320) {
             return false;
         }
         
         try {
-            // Calculate chunk index from block coordinates (Hytale chunks are 32x32)
+            // Get BlockChunk for this position
             long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
-            
-            // Use ChunkStore to get BlockChunk component directly
             com.hypixel.hytale.server.core.universe.world.storage.ChunkStore chunkStore = world.getChunkStore();
             BlockChunk blockChunk = chunkStore.getChunkComponent(chunkPos, BlockChunk.getComponentType());
             
             if (blockChunk == null) {
-                return false; // Chunk not accessible
+                return false;
             }
             
-            // Set block within chunk (local coordinates)
             int localX = x & ChunkUtil.SIZE_MASK;
             int localZ = z & ChunkUtil.SIZE_MASK;
             
-            // setBlock signature: setBlock(x, y, z, blockId, metadata, flags)
-            // Using 0 for metadata and 3 for flags (update + notify)
-            return blockChunk.setBlock(localX, y, localZ, blockId, 0, 3);
+            // Set the block in the chunk (this invalidates the section cache)
+            boolean success = blockChunk.setBlock(localX, y, localZ, blockId, rotation, filler);
+            
+            if (success) {
+                // Send ServerSetBlock packet to all players who have this chunk loaded
+                sendBlockUpdateToClients(world, x, y, z, blockId, (short) filler, (byte) rotation);
+            }
+            
+            return success;
             
         } catch (Exception e) {
             return false;
         }
+    }
+    
+    /**
+     * Send a block update packet to all clients who have the chunk loaded.
+     */
+    private static void sendBlockUpdateToClients(World world, int x, int y, int z, int blockId, short filler, byte rotation) {
+        try {
+            // Create the ServerSetBlock packet
+            com.hypixel.hytale.protocol.packets.world.ServerSetBlock packet = 
+                new com.hypixel.hytale.protocol.packets.world.ServerSetBlock(x, y, z, blockId, filler, rotation);
+            
+            // Use WorldNotificationHandler to send to all players with this chunk loaded
+            world.getNotificationHandler().sendPacketIfChunkLoaded(packet, x, z);
+        } catch (Exception e) {
+            // Silently fail - block was set but notification failed
+        }
+    }
+    
+    /**
+     * Get the block metadata at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The block metadata, or 0 if not accessible
+     */
+    public static int getBlockMeta(World world, int x, int y, int z) {
+        if (world == null || y < 0 || y >= 320) {
+            return 0;
+        }
+        
+        try {
+            long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+            com.hypixel.hytale.server.core.universe.world.storage.ChunkStore chunkStore = world.getChunkStore();
+            BlockChunk blockChunk = chunkStore.getChunkComponent(chunkPos, BlockChunk.getComponentType());
+            if (blockChunk == null) {
+                return 0;
+            }
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            
+            java.lang.reflect.Method metaGetter = CACHED_META_GETTER;
+            if (metaGetter == null) {
+                metaGetter = findMetaGetter(blockChunk.getClass());
+                CACHED_META_GETTER = metaGetter;
+            }
+            if (metaGetter == null) {
+                return 0;
+            }
+            
+            Object result = metaGetter.invoke(blockChunk, localX, y, localZ);
+            if (result instanceof Integer) {
+                return (Integer) result;
+            }
+            return 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static java.lang.reflect.Method findMetaGetter(Class<?> blockChunkClass) {
+        try {
+            String[] candidates = new String[] {
+                "getMeta", "getBlockMeta", "getBlockMetadata", "getMetadata", "getBlockData", "getData"
+            };
+            for (String name : candidates) {
+                try {
+                    return blockChunkClass.getMethod(name, int.class, int.class, int.class);
+                } catch (NoSuchMethodException ignored) {
+                }
+            }
+            
+            for (java.lang.reflect.Method m : blockChunkClass.getMethods()) {
+                if (m.getParameterCount() != 3) {
+                    continue;
+                }
+                if (m.getReturnType() != int.class) {
+                    continue;
+                }
+                Class<?>[] p = m.getParameterTypes();
+                if (p[0] == int.class && p[1] == int.class && p[2] == int.class) {
+                    String n = m.getName().toLowerCase();
+                    if (n.contains("meta") || n.contains("data")) {
+                        return m;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static java.lang.reflect.Method findDefaultMetaGetter(Class<?> blockTypeClass) {
+        try {
+            String[] candidates = new String[] {
+                "getDefaultMeta",
+                "getDefaultMetadata",
+                "getDefaultStateId",
+                "getDefaultBlockStateId",
+                "getDefaultState",
+                "getDefaultBlockState"
+            };
+            for (String name : candidates) {
+                try {
+                    return blockTypeClass.getMethod(name);
+                } catch (NoSuchMethodException ignored) {
+                }
+            }
+
+            for (java.lang.reflect.Method m : blockTypeClass.getMethods()) {
+                if (m.getParameterCount() != 0) {
+                    continue;
+                }
+                String n = m.getName().toLowerCase();
+                if (n.contains("default") && (n.contains("meta") || n.contains("state"))) {
+                    return m;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static Boolean trySetBlockViaWorld(World world, int x, int y, int z, int blockId, int metadata, int flags) {
+        try {
+            Class<?> wc = world.getClass();
+            
+            try {
+                java.lang.reflect.Method m = wc.getMethod("setBlock", int.class, int.class, int.class, int.class, int.class, int.class);
+                Object r = m.invoke(world, x, y, z, blockId, metadata, flags);
+                if (r instanceof Boolean) {
+                    return (Boolean) r;
+                }
+                return true;
+            } catch (NoSuchMethodException ignored) {
+            }
+            
+            try {
+                java.lang.reflect.Method m = wc.getMethod("setBlock", int.class, int.class, int.class, int.class);
+                Object r = m.invoke(world, x, y, z, blockId);
+                if (r instanceof Boolean) {
+                    return (Boolean) r;
+                }
+                return true;
+            } catch (NoSuchMethodException ignored) {
+            }
+            
+            try {
+                java.lang.reflect.Method m = wc.getMethod("setBlock", int.class, int.class, int.class, int.class, int.class);
+                Object r = m.invoke(world, x, y, z, blockId, flags);
+                if (r instanceof Boolean) {
+                    return (Boolean) r;
+                }
+                return true;
+            } catch (NoSuchMethodException ignored) {
+            }
+            
+        } catch (Exception ignored) {
+        }
+        
+        return null;
     }
     
     /**

@@ -69,3 +69,4 @@ config.json
 config.json.BAK
 permissions.json
 whitelist.json
+BLOCK_MAPPING_USAGE.md

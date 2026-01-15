@@ -197,6 +197,36 @@ world.getEventRegistry().registerListener(PlayerCommandEvent.class, event -> {
 
 The BlockMapping system uses HashMaps for O(1) lookup performance. The mapping is loaded once on first use and cached in memory, so there's minimal performance overhead compared to using numeric IDs directly.
 
+## How Block Setting Works (Technical Details)
+
+When you call `BlockHelper.setBlock()` or `BlockHelper.setBlockByName()`, the following happens:
+
+1. **Block Data Update**: The block is set in the `BlockChunk` via `blockChunk.setBlock(localX, y, localZ, blockId, rotation, filler)`
+   - `blockId`: The numeric block type ID
+   - `rotation`: Block rotation (0-23, typically 0 for no rotation)
+   - `filler`: Filler block data (typically 0)
+
+2. **Section Invalidation**: The `BlockChunk` automatically invalidates the chunk section's cached packet, marking it as needing a rebuild.
+
+3. **Client Notification**: A `ServerSetBlock` packet is sent to all players who have that chunk loaded via `WorldNotificationHandler.sendPacketIfChunkLoaded()`. This ensures the block change is immediately visible to players.
+
+### Why This Matters
+
+Without sending the `ServerSetBlock` packet, blocks would be set on the server but clients wouldn't see the change until they reload the chunk (e.g., by moving far away and coming back). The packet ensures:
+- **Immediate visibility**: Players see the block change instantly
+- **Collision updates**: The client updates collision for the new block
+- **Proper rendering**: The block mesh is rebuilt on the client
+
+### Advanced Usage: Block Rotation
+
+```java
+// Set a block with specific rotation
+BlockHelper.setBlock(world, x, y, z, blockId, rotation, filler);
+
+// rotation values: 0-23 (different orientations)
+// filler: typically 0, used for special block states
+```
+
 ## Total Blocks Available
 
 The current Hytale build contains **3,951 unique block types**!
