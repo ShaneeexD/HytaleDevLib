@@ -281,4 +281,232 @@ public class WorldHelper {
             }
         }, 0, 50); // Check every 50ms
     }
+    
+    /**
+     * Get the current game time as an Instant.
+     * This represents the in-game date and time.
+     * 
+     * @param world The world
+     * @return The current game time
+     */
+    public static java.time.Instant getGameTime(World world) {
+        if (world == null) {
+            return null;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getGameTime();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the current game date and time as a LocalDateTime.
+     * 
+     * @param world The world
+     * @return The current game date/time
+     */
+    public static java.time.LocalDateTime getGameDateTime(World world) {
+        if (world == null) {
+            return null;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getGameDateTime();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the current hour of the day (0-23).
+     * 
+     * @param world The world
+     * @return The current hour, or -1 if unavailable
+     */
+    public static int getCurrentHour(World world) {
+        if (world == null) {
+            return -1;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getCurrentHour();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Get the current day of the year (1-365).
+     * 
+     * @param world The world
+     * @return The day of year, or -1 if unavailable
+     */
+    public static int getDayOfYear(World world) {
+        java.time.LocalDateTime dateTime = getGameDateTime(world);
+        return dateTime != null ? dateTime.getDayOfYear() : -1;
+    }
+    
+    /**
+     * Get the current year.
+     * 
+     * @param world The world
+     * @return The year, or -1 if unavailable
+     */
+    public static int getYear(World world) {
+        java.time.LocalDateTime dateTime = getGameDateTime(world);
+        return dateTime != null ? dateTime.getYear() : -1;
+    }
+    
+    /**
+     * Get the day progress as a value between 0.0 and 1.0.
+     * 0.0 = midnight, 0.5 = noon, 1.0 = next midnight
+     * 
+     * @param world The world
+     * @return Day progress (0.0-1.0), or -1 if unavailable
+     */
+    public static float getDayProgress(World world) {
+        if (world == null) {
+            return -1;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getDayProgress();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Get the sunlight factor (0.0-1.0).
+     * 0.0 = night, 1.0 = full daylight
+     * 
+     * @param world The world
+     * @return Sunlight factor (0.0-1.0), or -1 if unavailable
+     */
+    public static double getSunlightFactor(World world) {
+        if (world == null) {
+            return -1;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getSunlightFactor();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Get the current moon phase (0-7 by default).
+     * 
+     * @param world The world
+     * @return Moon phase index, or -1 if unavailable
+     */
+    public static int getMoonPhase(World world) {
+        if (world == null) {
+            return -1;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            return timeResource.getMoonPhase();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Check if it's currently daytime.
+     * 
+     * @param world The world
+     * @return true if daytime, false if night or unavailable
+     */
+    public static boolean isDaytime(World world) {
+        double sunlight = getSunlightFactor(world);
+        return sunlight > 0.5;
+    }
+    
+    /**
+     * Check if it's currently nighttime.
+     * 
+     * @param world The world
+     * @return true if nighttime, false if day or unavailable
+     */
+    public static boolean isNighttime(World world) {
+        double sunlight = getSunlightFactor(world);
+        return sunlight >= 0 && sunlight <= 0.5;
+    }
+    
+    /**
+     * Set the game time to a specific instant.
+     * 
+     * @param world The world
+     * @param time The time to set
+     * @return true if successful
+     */
+    public static boolean setGameTime(World world, java.time.Instant time) {
+        if (world == null || time == null) {
+            return false;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            timeResource.setGameTime(time, world, world.getEntityStore().getStore());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Set the time of day as a value between 0.0 and 1.0.
+     * 0.0 = midnight, 0.5 = noon, 1.0 = next midnight
+     * 
+     * @param world The world
+     * @param dayTime Day time value (0.0-1.0)
+     * @return true if successful
+     */
+    public static boolean setDayTime(World world, double dayTime) {
+        if (world == null || dayTime < 0.0 || dayTime > 1.0) {
+            return false;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.modules.time.WorldTimeResource timeResource = 
+                world.getEntityStore().getStore().getResource(
+                    com.hypixel.hytale.server.core.modules.time.WorldTimeResource.getResourceType()
+                );
+            timeResource.setDayTime(dayTime, world, world.getEntityStore().getStore());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
