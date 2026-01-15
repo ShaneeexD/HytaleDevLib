@@ -71,6 +71,25 @@ Fundamental entity operations and spatial queries.
 - Distance-based game logic
 - Entity validation and queries
 
+---
+
+### 5. BlockHelper
+Block manipulation and world editing utilities.
+
+**What it does:**
+- Get and set blocks at specific positions
+- Fill or replace blocks in rectangular regions
+- Find blocks of specific types within a radius
+- Count blocks in regions
+- Check if positions contain air blocks
+
+**When to use:**
+- Building/terrain modification mods
+- Custom world generation
+- Area protection or region management
+- Block-based game mechanics
+- Mining or construction features
+
 ## Discovered API Information
 
 ### Working Events
@@ -589,6 +608,224 @@ if (itemId != null) {
     getLogger().at(Level.INFO).log("Found item: " + itemId + " x" + quantity);
 }
 ```
+
+---
+
+### BlockHelper Methods
+
+#### `getBlock(world, position)` / `getBlock(world, x, y, z)`
+Get the block ID at a specific position.
+
+```java
+// Get block at a position
+Vector3d pos = new Vector3d(100, 64, 100);
+int blockId = BlockHelper.getBlock(world, pos);
+WorldHelper.log(world, "Block ID at position: " + blockId);
+
+// Get block at specific coordinates
+int block = BlockHelper.getBlock(world, 100, 64, 100);
+
+// Check if a position is air
+if (BlockHelper.isAir(world, pos)) {
+    WorldHelper.log(world, "Position is empty!");
+}
+```
+
+#### `setBlock(world, position, blockId)` / `setBlock(world, x, y, z, blockId)`
+Set a block at a specific position.
+
+```java
+// Get the current block ID first
+Vector3d pos = new Vector3d(100, 64, 100);
+int currentBlockId = BlockHelper.getBlock(world, pos);
+WorldHelper.log(world, "Current block ID: " + currentBlockId);
+
+// Set a block using a known block ID
+boolean success = BlockHelper.setBlock(world, pos, currentBlockId);
+if (success) {
+    WorldHelper.log(world, "Block placed successfully!");
+}
+
+// Example: Copy a block from one location to another
+int sourceBlock = BlockHelper.getBlock(world, 100, 64, 100);
+BlockHelper.setBlock(world, 200, 64, 200, sourceBlock);
+```
+
+**⚠️ IMPORTANT - Block IDs:**
+- Block IDs are **internal numeric identifiers** (e.g., 684, 1032, 105)
+- Block ID `1` may create an invisible/invalid block in some builds
+- **Best practice:** Use `getBlock()` to read existing block IDs from the world, then use those IDs
+- Common block IDs vary by Hytale version and aren't documented yet
+- To find valid block IDs: scan your world with `getBlocksInRegion()` and use the IDs you find
+
+#### `fillRegion(world, pos1, pos2, blockId)`
+Fill a rectangular region with a specific block type.
+
+```java
+// Create a stone platform
+Vector3d corner1 = new Vector3d(100, 64, 100);
+Vector3d corner2 = new Vector3d(110, 64, 110);
+int blocksSet = BlockHelper.fillRegion(world, corner1, corner2, 1); // Fill with stone
+WorldHelper.log(world, "Created platform with " + blocksSet + " blocks");
+
+// Build a wall
+Vector3d wallStart = new Vector3d(100, 64, 100);
+Vector3d wallEnd = new Vector3d(100, 70, 110);
+BlockHelper.fillRegion(world, wallStart, wallEnd, 1);
+```
+
+#### `replaceBlocksInRegion(world, pos1, pos2, oldBlockId, newBlockId)`
+Replace all blocks of one type with another in a region.
+
+```java
+// Replace all dirt with grass in an area
+Vector3d corner1 = new Vector3d(90, 60, 90);
+Vector3d corner2 = new Vector3d(110, 70, 110);
+int replaced = BlockHelper.replaceBlocksInRegion(world, corner1, corner2, 3, 2); // dirt -> grass
+WorldHelper.log(world, "Replaced " + replaced + " blocks");
+
+// Clear water from an area (replace with air)
+BlockHelper.replaceBlocksInRegion(world, corner1, corner2, 8, 0); // water -> air
+```
+
+#### `findNearbyBlocks(world, center, radius, blockId)`
+Find all positions of a specific block type within a radius.
+
+```java
+// Find all diamond ore within 50 blocks
+Vector3d playerPos = EntityHelper.getPosition(player);
+List<Vector3i> diamondOres = BlockHelper.findNearbyBlocks(world, playerPos, 50, 56); // 56 = diamond ore (example)
+WorldHelper.log(world, "Found " + diamondOres.size() + " diamond ore blocks nearby");
+
+// Highlight found blocks to player
+for (Vector3i orePos : diamondOres) {
+    WorldHelper.log(world, "Diamond ore at: " + orePos.getX() + ", " + orePos.getY() + ", " + orePos.getZ());
+}
+```
+
+#### `getBlocksInRegion(world, pos1, pos2)`
+Get all block positions and IDs within a rectangular region.
+
+```java
+// Scan a region and catalog all blocks
+Vector3d corner1 = new Vector3d(100, 64, 100);
+Vector3d corner2 = new Vector3d(105, 69, 105);
+List<BlockHelper.BlockPosition> blocks = BlockHelper.getBlocksInRegion(world, corner1, corner2);
+
+// Count different block types
+Map<Integer, Integer> blockCounts = new HashMap<>();
+for (BlockHelper.BlockPosition block : blocks) {
+    blockCounts.put(block.blockId, blockCounts.getOrDefault(block.blockId, 0) + 1);
+}
+
+// Log the results
+for (Map.Entry<Integer, Integer> entry : blockCounts.entrySet()) {
+    WorldHelper.log(world, "Block ID " + entry.getKey() + ": " + entry.getValue() + " blocks");
+}
+```
+
+#### `countBlocksInRegion(world, pos1, pos2, blockId)`
+Count how many blocks of a specific type exist in a region.
+
+```java
+// Count stone blocks in a mining area
+Vector3d corner1 = new Vector3d(100, 50, 100);
+Vector3d corner2 = new Vector3d(120, 64, 120);
+int stoneCount = BlockHelper.countBlocksInRegion(world, corner1, corner2, 1);
+WorldHelper.log(world, "Mining area contains " + stoneCount + " stone blocks");
+
+// Check if area is mostly cleared (count air blocks)
+int airCount = BlockHelper.countBlocksInRegion(world, corner1, corner2, 0);
+int totalBlocks = (21 * 15 * 21); // volume of region
+double clearPercentage = (airCount * 100.0) / totalBlocks;
+WorldHelper.log(world, "Area is " + clearPercentage + "% cleared");
+```
+
+#### Practical Examples
+
+**Example 1: Create a simple house foundation**
+```java
+Vector3d corner1 = new Vector3d(100, 64, 100);
+Vector3d corner2 = new Vector3d(110, 64, 110);
+
+// Create stone floor
+BlockHelper.fillRegion(world, corner1, corner2, 1);
+
+// Create walls (4 separate fills)
+BlockHelper.fillRegion(world, new Vector3d(100, 65, 100), new Vector3d(100, 70, 110), 1); // West wall
+BlockHelper.fillRegion(world, new Vector3d(110, 65, 100), new Vector3d(110, 70, 110), 1); // East wall
+BlockHelper.fillRegion(world, new Vector3d(100, 65, 100), new Vector3d(110, 70, 100), 1); // North wall
+BlockHelper.fillRegion(world, new Vector3d(100, 65, 110), new Vector3d(110, 70, 110), 1); // South wall
+```
+
+**Example 2: Ore detector command**
+```java
+EventHelper.onPlayerJoinWorld(plugin, world -> {
+    // Register a command to find nearby ores
+    world.getEventRegistry().registerListener(PlayerCommandEvent.class, event -> {
+        if (event.getCommand().equals("/findores")) {
+            Entity player = event.getPlayer();
+            Vector3d pos = EntityHelper.getPosition(player);
+            
+            // Search for different ore types
+            int diamondCount = BlockHelper.findNearbyBlocks(world, pos, 50, 56).size();
+            int goldCount = BlockHelper.findNearbyBlocks(world, pos, 50, 14).size();
+            int ironCount = BlockHelper.findNearbyBlocks(world, pos, 50, 15).size();
+            
+            WorldHelper.log(world, "Ores within 50 blocks:");
+            WorldHelper.log(world, "Diamond: " + diamondCount);
+            WorldHelper.log(world, "Gold: " + goldCount);
+            WorldHelper.log(world, "Iron: " + ironCount);
+        }
+    });
+});
+```
+
+**Example 3: Protected region system**
+```java
+// Check if player is trying to break blocks in a protected area
+world.getEventRegistry().registerListener(BreakBlockEvent.class, event -> {
+    Vector3d blockPos = event.getBlockPosition();
+    Vector3d protectedCorner1 = new Vector3d(0, 0, 0);
+    Vector3d protectedCorner2 = new Vector3d(100, 100, 100);
+    
+    // Check if block is in protected region
+    if (isInRegion(blockPos, protectedCorner1, protectedCorner2)) {
+        event.setCancelled(true);
+        WorldHelper.log(world, "Cannot break blocks in spawn protection!");
+    }
+});
+
+// Helper method to check if position is in region
+private boolean isInRegion(Vector3d pos, Vector3d corner1, Vector3d corner2) {
+    double minX = Math.min(corner1.getX(), corner2.getX());
+    double maxX = Math.max(corner1.getX(), corner2.getX());
+    double minY = Math.min(corner1.getY(), corner2.getY());
+    double maxY = Math.max(corner1.getY(), corner2.getY());
+    double minZ = Math.min(corner1.getZ(), corner2.getZ());
+    double maxZ = Math.max(corner1.getZ(), corner2.getZ());
+    
+    return pos.getX() >= minX && pos.getX() <= maxX &&
+           pos.getY() >= minY && pos.getY() <= maxY &&
+           pos.getZ() >= minZ && pos.getZ() <= maxZ;
+}
+```
+
+**⚠️ IMPORTANT - Chunk Requirements:**
+
+BlockHelper uses Hytale's **32x32 block chunks** and can only access chunks present in the ChunkStore. Chunks that aren't in the store will return 0 (air) for reads and fail for writes.
+
+**Checking if a chunk is loaded:**
+```java
+ChunkStore chunkStore = world.getChunkStore();
+// Hytale chunks are 32x32 blocks (use ChunkUtil for correct indexing)
+long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+LongSet chunkIndexes = chunkStore.getChunkIndexes();
+boolean isLoaded = chunkIndexes.contains(chunkPos);
+WorldHelper.log(world, "Chunk loaded: " + isLoaded);
+```
+
+Most chunks where players are active will be in the ChunkStore. If you encounter issues, verify the chunk is loaded using the code above.
 
 ## Installation
 

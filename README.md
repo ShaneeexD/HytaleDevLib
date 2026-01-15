@@ -33,6 +33,13 @@ HytaleDevLib provides four main helper classes that simplify Hytale plugin devel
 - **Player home/respawn position retrieval**
 - Readable NPC type names (e.g., "Cow", "Minnow", "Skeleton_Fighter")
 
+### BlockHelper
+- Get and set blocks at any position
+- Fill or replace blocks in regions
+- Find blocks by type within radius
+- Count blocks in areas
+- World editing utilities
+
 ### ComponentHelper
 - Type-safe ECS component operations
 - Display name management
