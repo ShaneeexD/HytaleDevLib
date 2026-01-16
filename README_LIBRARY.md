@@ -90,15 +90,6 @@ Block manipulation and world editing utilities.
 - Block-based game mechanics
 - Mining or construction features
 
-## Discovered API Information
-
-### Working Events
-- ✅ `AddPlayerToWorldEvent` - Player joins world
-- ✅ `LivingEntityInventoryChangeEvent` - Inventory changes (drops, pickups)
-- ✅ `BreakBlockEvent` - Block breaking (via global listener)
-- ❌ `DropItemEvent` - Does NOT fire for player inventory drops
-- ❌ `InteractivelyPickupItemEvent` - Needs testing
-
 ### Component Paths
 ```java
 // Items
@@ -261,6 +252,86 @@ WorldHelper.waitTicks(world, 20, () -> {
 ```
 
 **Note:** The tick tracker uses a background timer that polls `world.getTick()` every 50ms and executes callbacks on the world's main thread for thread safety. The `waitTicks` method creates a self-canceling timer for one-time execution.
+
+#### Time and Day System
+
+Get and manipulate the in-game time and day cycle.
+
+**Getting Time Information:**
+```java
+// Get current game date/time
+LocalDateTime gameDateTime = WorldHelper.getGameDateTime(world);
+WorldHelper.log(world, "Current time: " + gameDateTime);
+
+// Get specific time components
+int year = WorldHelper.getYear(world);              // Current year
+int dayOfYear = WorldHelper.getDayOfYear(world);    // Day of year (1-365)
+int hour = WorldHelper.getCurrentHour(world);       // Hour (0-23)
+
+// Get day progress (0.0 = midnight, 0.5 = noon, 1.0 = next midnight)
+float dayProgress = WorldHelper.getDayProgress(world);
+WorldHelper.log(world, "Day is " + (dayProgress * 100) + "% complete");
+```
+
+**Day/Night Detection:**
+```java
+// Check if it's day or night
+if (WorldHelper.isDaytime(world)) {
+    WorldHelper.log(world, "It's daytime!");
+}
+
+if (WorldHelper.isNighttime(world)) {
+    WorldHelper.log(world, "It's nighttime!");
+}
+
+// Get sunlight factor (0.0 = night, 1.0 = full daylight)
+double sunlight = WorldHelper.getSunlightFactor(world);
+WorldHelper.log(world, "Sunlight: " + (sunlight * 100) + "%");
+```
+
+**Moon Phase:**
+```java
+// Get current moon phase (0-7 by default)
+int moonPhase = WorldHelper.getMoonPhase(world);
+WorldHelper.log(world, "Moon phase: " + moonPhase);
+```
+
+**Setting Time:**
+```java
+// Set time of day (0.0-1.0)
+WorldHelper.setDayTime(world, 0.0);   // Midnight
+WorldHelper.setDayTime(world, 0.25);  // Sunrise
+WorldHelper.setDayTime(world, 0.5);   // Noon
+WorldHelper.setDayTime(world, 0.75);  // Sunset
+
+// Set specific game time
+Instant newTime = Instant.parse("2024-06-15T12:00:00Z");
+WorldHelper.setGameTime(world, newTime);
+```
+
+**Practical Examples:**
+```java
+// Spawn hostile mobs only at night
+if (WorldHelper.isNighttime(world)) {
+    EntityHelper.spawnNPC(world, "Skeleton_Fighter", x, y, z);
+}
+
+// Change behavior based on time of day
+int hour = WorldHelper.getCurrentHour(world);
+if (hour >= 6 && hour < 18) {
+    // Daytime behavior (6 AM - 6 PM)
+    WorldHelper.log(world, "NPCs are active");
+} else {
+    // Nighttime behavior
+    WorldHelper.log(world, "NPCs are sleeping");
+}
+
+// Moon phase events
+int moonPhase = WorldHelper.getMoonPhase(world);
+if (moonPhase == 0) {
+    WorldHelper.log(world, "Full moon! Werewolves appear!");
+}
+```
 
 ---
 
@@ -484,56 +555,53 @@ for (Map.Entry<String, Integer> entry : entityCounts.entrySet()) {
 }
 ```
 
-#### Spawning Entities
-Entity spawning in Hytale requires manual ECS setup. Here's how to spawn entities:
+#### `spawnNPC(world, roleName, position)` / `spawnNPC(world, roleName, x, y, z)`
+Spawn an NPC entity by role name (recommended method).
 
 ```java
-// Spawning entities requires access to the EntityStore and proper component setup
-world.execute(() -> {
-    // 1. Get the EntityStore
-    EntityStore entityStore = world.getEntityStore();
-    Store<EntityStore> store = entityStore.getStore();
-    
-    // 2. Create a new entity holder
-    Holder<EntityStore> holder = EntityStore.REGISTRY.newHolder();
-    
-    // 3. Get the model asset for the entity you want to spawn
-    // Available entity models: Cow, Deer_Doe, Minnow, Fox, Rabbit, Pig, Sheep, etc.
-    // Full list: https://hytalemodding.dev/en/docs/server/entities
-    ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset("Cow");
-    Model model = Model.createScaledModel(modelAsset, 1.0f);
-    
-    // 4. Define spawn position
-    Vector3d spawnPos = new Vector3d(100, 64, 100);
-    
-    // 5. Add required components to the entity
-    holder.addComponent(TransformComponent.getComponentType(), 
-        new TransformComponent(spawnPos, new Vector3f(0, 0, 0)));
-    holder.addComponent(PersistentModel.getComponentType(), 
-        new PersistentModel(model.toReference()));
-    holder.addComponent(ModelComponent.getComponentType(), 
-        new ModelComponent(model));
-    holder.addComponent(BoundingBox.getComponentType(), 
-        new BoundingBox(model.getBoundingBox()));
-    holder.addComponent(NetworkId.getComponentType(), 
-        new NetworkId(store.getExternalData().takeNextNetworkId()));
-    holder.addComponent(Interactions.getComponentType(), 
-        new Interactions());
-    
-    // 6. Add the entity to the world
-    entityStore.addEntity(holder, AddReason.SPAWN);
-    
-    WorldHelper.log(world, "Spawned entity at " + spawnPos);
-});
+// Spawn a cow at a position
+Vector3d spawnPos = new Vector3d(100, 64, 100);
+Entity cow = EntityHelper.spawnNPC(world, "Cow", spawnPos);
+if (cow != null) {
+    WorldHelper.log(world, "Successfully spawned a Cow!");
+}
+
+// Spawn using coordinates
+Entity deer = EntityHelper.spawnNPC(world, "Deer_Doe", 105, 64, 100);
+
+// Spawn with rotation (yaw in radians)
+Entity chicken = EntityHelper.spawnNPC(world, "Chicken", 110, 64, 100, (float) Math.PI);
 ```
 
-**Available Entity Models:**
-- Animals: `Cow`, `Pig`, `Sheep`, `Rabbit`, `Fox`, `Deer_Doe`, `Chicken`, `Horse`
-- Fish: `Minnow`, `Salmon`, `Pike`, `Catfish`, `Bluegill`
-- Hostile: `Skeleton_Fighter`, `Trork_Warrior`, `Goblin`, `Zombie`
-- And many more! See the [full entity list](https://hytalemodding.dev/en/docs/server/entities)
+**Available NPC Role Names:**
+- **Animals:** `Cow`, `Pig`, `Sheep`, `Rabbit`, `Fox`, `Deer_Doe`, `Chicken`, `Horse`
+- **Fish:** `Minnow`, `Salmon`, `Pike`, `Catfish`, `Bluegill`
+- **Hostile:** `Skeleton_Fighter`, `Trork_Warrior`, `Goblin`, `Zombie`
+- And many more! Any NPC role name in Hytale works, find a comprehensive list here: https://hytalemodding.dev/en/docs/server/entities
 
-**Note:** Entity spawning is a complex process that requires proper component initialization. The above example shows the basic structure, but you may need to add additional components depending on the entity type. For more details, see the [Hytale Modding Documentation](https://hytalemodding.dev/en/docs/guides/plugin/spawning-entities).
+**How It Works:**
+EntityHelper uses Hytale's internal `NPCPlugin.spawnEntity()` method which properly:
+1. Looks up the role index by name
+2. Creates all required ECS components (Transform, HeadRotation, DisplayName, UUID, Model, etc.)
+3. Adds the entity to the EntityStore with proper initialization
+4. Returns the spawned NPCEntity
+
+**Example: Spawn multiple entities around player**
+```java
+Vector3d playerPos = EntityHelper.getPosition(player);
+
+// Spawn a cow in front
+Entity cow = EntityHelper.spawnNPC(world, "Cow", 
+    playerPos.getX() + 5, playerPos.getY(), playerPos.getZ());
+
+// Spawn a deer to the right
+Entity deer = EntityHelper.spawnNPC(world, "Deer_Doe",
+    playerPos.getX(), playerPos.getY(), playerPos.getZ() + 5);
+
+// Spawn a chicken behind with rotation
+Entity chicken = EntityHelper.spawnNPC(world, "Chicken",
+    playerPos.getX() - 5, playerPos.getY(), playerPos.getZ(), (float) Math.PI);
+```
 
 ---
 
@@ -613,6 +681,36 @@ if (itemId != null) {
 
 ### BlockHelper Methods
 
+BlockHelper now supports **name-based block operations** similar to Minecraft modding, making it much easier to work with blocks without memorizing numeric IDs.
+
+#### Name-Based Block Setting (Recommended)
+
+```java
+// Set a block by name - much easier than using numeric IDs!
+BlockHelper.setBlockByName(world, x, y, z, "Rock_Stone");
+BlockHelper.setBlockByName(world, position, "Soil_Grass");
+
+// Get block ID from name
+int stoneId = BlockHelper.getBlockId("Rock_Stone"); // Returns 1032
+
+// Fill a region with a named block
+Vector3d corner1 = new Vector3d(100, 64, 100);
+Vector3d corner2 = new Vector3d(110, 64, 110);
+int blocksSet = BlockHelper.fillRegionByName(world, corner1, corner2, "Rock_Stone");
+
+// Replace blocks by name
+int replaced = BlockHelper.replaceBlocksInRegionByName(
+    world, corner1, corner2, 
+    "Soil_Dirt",   // old block
+    "Soil_Grass"   // new block
+);
+
+// Find blocks by name
+List<Vector3i> diamonds = BlockHelper.findNearbyBlocksByName(world, playerPos, 50, "Ore_Copper_Stone");
+```
+
+See `lib/BlockIds.java` for the complete list of 3,951 block names.
+
 #### `getBlockName(blockId)` / `getBlockName(world, position)` / `getBlockName(world, x, y, z)`
 Get the human-readable block name from a block ID or position.
 
@@ -620,7 +718,7 @@ Get the human-readable block name from a block ID or position.
 // Get block name from numeric ID
 int blockId = 684;
 String blockName = BlockHelper.getBlockName(blockId);
-WorldHelper.log(world, "Block: " + blockName); // e.g., "hytale:blocks/stone"
+WorldHelper.log(world, "Block: " + blockName); // e.g., "Rock_Stone"
 
 // Get block name at a position
 Vector3d pos = new Vector3d(100, 64, 100);
@@ -631,7 +729,7 @@ WorldHelper.log(world, "Block at position: " + name);
 String blockName = BlockHelper.getBlockName(world, 100, 64, 100);
 ```
 
-**Note:** Block names are the internal asset IDs (e.g., "hytale:blocks/stone", "hytale:blocks/grass"). This is similar to how `EntityHelper.getEntityType()` returns entity role names.
+**Note:** Block names are the internal asset IDs (e.g., "Rock_Stone", "Soil_Grass"). This is similar to how `EntityHelper.getEntityType()` returns entity role names.
 
 #### `getBlock(world, position)` / `getBlock(world, x, y, z)`
 Get the numeric block ID at a specific position.
@@ -656,76 +754,117 @@ if (BlockHelper.isAir(world, pos)) {
     WorldHelper.log(world, "Position is empty!");
 }
 
-#### `setBlock(world, position, blockId)` / `setBlock(world, x, y, z, blockId)`
-Set a block at a specific position.
+#### `setBlockByName(world, position, blockName)` / `setBlockByName(world, x, y, z, blockName)`
+Set a block by name at a specific position (recommended method).
 
 ```java
-// Get the current block ID first
-Vector3d pos = new Vector3d(100, 64, 100);
-int currentBlockId = BlockHelper.getBlock(world, pos);
-WorldHelper.log(world, "Current block ID: " + currentBlockId);
-
-// Set a block using a known block ID
-boolean success = BlockHelper.setBlock(world, pos, currentBlockId);
+// Set a block by name - easy and readable!
+boolean success = BlockHelper.setBlockByName(world, 100, 64, 100, "Rock_Stone");
 if (success) {
     WorldHelper.log(world, "Block placed successfully!");
 }
+
+// Using Vector3d position
+Vector3d pos = new Vector3d(100, 64, 100);
+BlockHelper.setBlockByName(world, pos, "Soil_Grass");
+
+// Example: Build a cobblestone path
+for (int x = 100; x <= 110; x++) {
+    BlockHelper.setBlockByName(world, x, 64, 100, "Rock_Stone_Cobble");
+}
+```
+
+#### `setBlock(world, position, blockId)` / `setBlock(world, x, y, z, blockId)`
+Set a block using numeric ID (use `setBlockByName` instead when possible).
+
+```java
+// Get block ID from name first
+int stoneId = BlockHelper.getBlockId("Rock_Stone");
+
+// Set using numeric ID
+boolean success = BlockHelper.setBlock(world, 100, 64, 100, stoneId);
 
 // Example: Copy a block from one location to another
 int sourceBlock = BlockHelper.getBlock(world, 100, 64, 100);
 BlockHelper.setBlock(world, 200, 64, 200, sourceBlock);
 ```
 
-**⚠️ IMPORTANT - Block IDs:**
-- Block IDs are **internal numeric identifiers** (e.g., 684, 1032, 105)
-- Block ID `1` may create an invisible/invalid block in some builds
-- **Best practice:** Use `getBlock()` to read existing block IDs from the world, then use those IDs
-- Common block IDs vary by Hytale version and aren't documented yet
-- To find valid block IDs: scan your world with `getBlocksInRegion()` and use the IDs you find
+**💡 TIP:** Use name-based methods (`setBlockByName`, `fillRegionByName`, etc.) for better code readability. Numeric IDs are still useful for copying blocks or advanced operations.
 
-#### `fillRegion(world, pos1, pos2, blockId)`
-Fill a rectangular region with a specific block type.
+#### `fillRegionByName(world, pos1, pos2, blockName)`
+Fill a rectangular region with a named block type (recommended).
 
 ```java
 // Create a stone platform
 Vector3d corner1 = new Vector3d(100, 64, 100);
 Vector3d corner2 = new Vector3d(110, 64, 110);
-int blocksSet = BlockHelper.fillRegion(world, corner1, corner2, 1); // Fill with stone
+int blocksSet = BlockHelper.fillRegionByName(world, corner1, corner2, "Rock_Stone");
 WorldHelper.log(world, "Created platform with " + blocksSet + " blocks");
 
-// Build a wall
-Vector3d wallStart = new Vector3d(100, 64, 100);
-Vector3d wallEnd = new Vector3d(100, 70, 110);
-BlockHelper.fillRegion(world, wallStart, wallEnd, 1);
+// Build a grass field
+BlockHelper.fillRegionByName(world, corner1, corner2, "Soil_Grass");
 ```
 
-#### `replaceBlocksInRegion(world, pos1, pos2, oldBlockId, newBlockId)`
-Replace all blocks of one type with another in a region.
+#### `fillRegion(world, pos1, pos2, blockId)`
+Fill a rectangular region with a block ID (use `fillRegionByName` when possible).
+
+```java
+// Using numeric ID
+int stoneId = BlockHelper.getBlockId("Rock_Stone");
+int blocksSet = BlockHelper.fillRegion(world, corner1, corner2, stoneId);
+```
+
+#### `replaceBlocksInRegionByName(world, pos1, pos2, oldBlockName, newBlockName)`
+Replace all blocks of one type with another in a region by name (recommended).
 
 ```java
 // Replace all dirt with grass in an area
 Vector3d corner1 = new Vector3d(90, 60, 90);
 Vector3d corner2 = new Vector3d(110, 70, 110);
-int replaced = BlockHelper.replaceBlocksInRegion(world, corner1, corner2, 3, 2); // dirt -> grass
-WorldHelper.log(world, "Replaced " + replaced + " blocks");
+int replaced = BlockHelper.replaceBlocksInRegionByName(
+    world, corner1, corner2, 
+    "Soil_Dirt",   // old block
+    "Soil_Grass"   // new block
+);
+WorldHelper.log(world, "Replaced " + replaced + " dirt blocks with grass");
 
-// Clear water from an area (replace with air)
-BlockHelper.replaceBlocksInRegion(world, corner1, corner2, 8, 0); // water -> air
+// Convert stone to cobblestone
+BlockHelper.replaceBlocksInRegionByName(world, corner1, corner2, "Rock_Stone", "Rock_Stone_Cobble");
+```
+
+#### `replaceBlocksInRegion(world, pos1, pos2, oldBlockId, newBlockId)`
+Replace blocks using numeric IDs (use `replaceBlocksInRegionByName` when possible).
+
+```java
+// Using numeric IDs
+int dirtId = BlockHelper.getBlockId("Soil_Dirt");
+int grassId = BlockHelper.getBlockId("Soil_Grass");
+int replaced = BlockHelper.replaceBlocksInRegion(world, corner1, corner2, dirtId, grassId);
+```
+
+#### `findNearbyBlocksByName(world, center, radius, blockName)`
+Find all positions of a specific block type by name within a radius (recommended).
+
+```java
+// Find all copper ore within 50 blocks
+Vector3d playerPos = EntityHelper.getPosition(player);
+List<Vector3i> copperOres = BlockHelper.findNearbyBlocksByName(world, playerPos, 50, "Ore_Copper_Stone");
+WorldHelper.log(world, "Found " + copperOres.size() + " copper ore blocks nearby");
+
+// Find all diamond ore
+List<Vector3i> diamonds = BlockHelper.findNearbyBlocksByName(world, playerPos, 50, "Ore_Diamond");
+for (Vector3i orePos : diamonds) {
+    WorldHelper.log(world, "Diamond at: " + orePos.getX() + ", " + orePos.getY() + ", " + orePos.getZ());
+}
 ```
 
 #### `findNearbyBlocks(world, center, radius, blockId)`
-Find all positions of a specific block type within a radius.
+Find blocks using numeric ID (use `findNearbyBlocksByName` when possible).
 
 ```java
-// Find all diamond ore within 50 blocks
-Vector3d playerPos = EntityHelper.getPosition(player);
-List<Vector3i> diamondOres = BlockHelper.findNearbyBlocks(world, playerPos, 50, 56); // 56 = diamond ore (example)
-WorldHelper.log(world, "Found " + diamondOres.size() + " diamond ore blocks nearby");
-
-// Highlight found blocks to player
-for (Vector3i orePos : diamondOres) {
-    WorldHelper.log(world, "Diamond ore at: " + orePos.getX() + ", " + orePos.getY() + ", " + orePos.getZ());
-}
+// Using numeric ID
+int diamondId = BlockHelper.getBlockId("Ore_Diamond");
+List<Vector3i> diamonds = BlockHelper.findNearbyBlocks(world, playerPos, 50, diamondId);
 ```
 
 #### `getBlocksInRegion(world, pos1, pos2)`
@@ -773,14 +912,14 @@ WorldHelper.log(world, "Area is " + clearPercentage + "% cleared");
 Vector3d corner1 = new Vector3d(100, 64, 100);
 Vector3d corner2 = new Vector3d(110, 64, 110);
 
-// Create stone floor
-BlockHelper.fillRegion(world, corner1, corner2, 1);
+// Create stone floor using name-based method
+BlockHelper.fillRegionByName(world, corner1, corner2, "Rock_Stone");
 
-// Create walls (4 separate fills)
-BlockHelper.fillRegion(world, new Vector3d(100, 65, 100), new Vector3d(100, 70, 110), 1); // West wall
-BlockHelper.fillRegion(world, new Vector3d(110, 65, 100), new Vector3d(110, 70, 110), 1); // East wall
-BlockHelper.fillRegion(world, new Vector3d(100, 65, 100), new Vector3d(110, 70, 100), 1); // North wall
-BlockHelper.fillRegion(world, new Vector3d(100, 65, 110), new Vector3d(110, 70, 110), 1); // South wall
+// Create cobblestone walls (4 separate fills)
+BlockHelper.fillRegionByName(world, new Vector3d(100, 65, 100), new Vector3d(100, 70, 110), "Rock_Stone_Cobble"); // West wall
+BlockHelper.fillRegionByName(world, new Vector3d(110, 65, 100), new Vector3d(110, 70, 110), "Rock_Stone_Cobble"); // East wall
+BlockHelper.fillRegionByName(world, new Vector3d(100, 65, 100), new Vector3d(110, 70, 100), "Rock_Stone_Cobble"); // North wall
+BlockHelper.fillRegionByName(world, new Vector3d(100, 65, 110), new Vector3d(110, 70, 110), "Rock_Stone_Cobble"); // South wall
 ```
 
 **Example 2: Ore detector command**
@@ -792,21 +931,35 @@ EventHelper.onPlayerJoinWorld(plugin, world -> {
             Entity player = event.getPlayer();
             Vector3d pos = EntityHelper.getPosition(player);
             
-            // Search for different ore types
-            int diamondCount = BlockHelper.findNearbyBlocks(world, pos, 50, 56).size();
-            int goldCount = BlockHelper.findNearbyBlocks(world, pos, 50, 14).size();
-            int ironCount = BlockHelper.findNearbyBlocks(world, pos, 50, 15).size();
+            // Search for different ore types using name-based methods
+            int diamondCount = BlockHelper.findNearbyBlocksByName(world, pos, 50, "Ore_Diamond").size();
+            int goldCount = BlockHelper.findNearbyBlocksByName(world, pos, 50, "Ore_Gold").size();
+            int copperCount = BlockHelper.findNearbyBlocksByName(world, pos, 50, "Ore_Copper_Stone").size();
             
             WorldHelper.log(world, "Ores within 50 blocks:");
             WorldHelper.log(world, "Diamond: " + diamondCount);
             WorldHelper.log(world, "Gold: " + goldCount);
-            WorldHelper.log(world, "Iron: " + ironCount);
+            WorldHelper.log(world, "Copper: " + copperCount);
         }
     });
 });
 ```
 
-**Example 3: Protected region system**
+**Example 3: Terrain transformation**
+```java
+// Convert a dirt area to grass
+Vector3d corner1 = new Vector3d(90, 60, 90);
+Vector3d corner2 = new Vector3d(110, 70, 110);
+int replaced = BlockHelper.replaceBlocksInRegionByName(world, corner1, corner2, "Soil_Dirt", "Soil_Grass");
+WorldHelper.log(world, "Transformed " + replaced + " dirt blocks to grass");
+
+// Create a stone path through grass
+for (int x = 95; x <= 105; x++) {
+    BlockHelper.setBlockByName(world, x, 64, 100, "Rock_Stone_Cobble");
+}
+```
+
+**Example 4: Protected region system**
 ```java
 // Check if player is trying to break blocks in a protected area
 world.getEventRegistry().registerListener(BreakBlockEvent.class, event -> {
@@ -851,6 +1004,42 @@ WorldHelper.log(world, "Chunk loaded: " + isLoaded);
 ```
 
 Most chunks where players are active will be in the ChunkStore. If you encounter issues, verify the chunk is loaded using the code above.
+
+---
+
+### How Block Setting Works (Technical Details)
+
+When you call any `BlockHelper.setBlock()` or `setBlockByName()` method, the following happens automatically:
+
+1. **Block Data Update**: The block is set in the `BlockChunk` via `blockChunk.setBlock(localX, y, localZ, blockId, rotation, filler)`
+   - `blockId`: The numeric block type ID
+   - `rotation`: Block rotation (0-23, typically 0 for no rotation)
+   - `filler`: Filler block data (typically 0)
+
+2. **Section Invalidation**: The `BlockChunk` automatically invalidates the chunk section's cached packet, marking it as needing a rebuild.
+
+3. **Client Notification**: A `ServerSetBlock` packet is sent to all players who have that chunk loaded via `WorldNotificationHandler.sendPacketIfChunkLoaded()`. This ensures the block change is immediately visible to players.
+
+**Why This Matters:**
+Without sending the `ServerSetBlock` packet, blocks would be set on the server but clients wouldn't see the change until they reload the chunk (e.g., by moving far away and coming back). The packet ensures:
+- **Immediate visibility**: Players see the block change instantly
+- **Collision updates**: The client updates collision for the new block
+- **Proper rendering**: The block mesh is rebuilt on the client
+
+**All BlockHelper methods handle this automatically** - you don't need to manually send any packets. This includes:
+- `setBlock()` / `setBlockByName()`
+- `fillRegion()` / `fillRegionByName()`
+- `replaceBlocksInRegion()` / `replaceBlocksInRegionByName()`
+
+#### Advanced Usage: Block Rotation
+
+```java
+// Set a block with specific rotation
+BlockHelper.setBlock(world, x, y, z, blockId, rotation, filler);
+
+// rotation values: 0-23 (different orientations)
+// filler: typically 0, used for special block states
+```
 
 ## Installation
 

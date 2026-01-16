@@ -70,3 +70,6 @@ config.json.BAK
 permissions.json
 whitelist.json
 BLOCK_MAPPING_USAGE.md
+CHANGELOG.md
+CURSEFORGE_DESCRIPTION.md
+TestPlugin.java

@@ -51,6 +51,9 @@ public class TestPlugin extends JavaPlugin {
             }
         });
         
+        // Register new event tests
+        registerEventTests();
+        
         LOGGER.at(Level.INFO).log("Test plugin setup complete! Waiting for player to join...");
     }
     
@@ -397,5 +400,43 @@ public class TestPlugin extends JavaPlugin {
         
         LOGGER.at(Level.INFO).log("Tick tracking test registered successfully!");
         LOGGER.at(Level.INFO).log("Watch the logs - will log EVERY tick!");
+    }
+    
+    /**
+     * Register tests for all the new EventHelper methods.
+     * These will log when events are triggered so you can verify they work.
+     */
+    private void registerEventTests() {
+        LOGGER.at(Level.INFO).log("Registering EventHelper tests...");
+        
+        // Test onPlayerChat - WORKS
+        org.hytaledevlib.lib.EventHelper.onPlayerChat(this, (username, message) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Chat from " + username + ": " + message);
+        });
+        
+        // Test onPlayerDisconnect - Testing if this works
+        org.hytaledevlib.lib.EventHelper.onPlayerDisconnect(this, (username) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Player disconnected: " + username);
+        });
+        
+        // Test onItemDrop - WORKS (with correct quantity)
+        org.hytaledevlib.lib.EventHelper.onItemDrop(this, (itemId, quantity) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Item dropped: " + quantity + "x " + itemId);
+        });
+        
+        // Test onItemPickup - WORKS
+        org.hytaledevlib.lib.EventHelper.onItemPickup(this, (itemId, quantity) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Item picked up: " + quantity + "x " + itemId);
+        });
+        
+        LOGGER.at(Level.INFO).log("EventHelper tests registered! Working events:");
+        LOGGER.at(Level.INFO).log("  ✓ Sending chat messages");
+        LOGGER.at(Level.INFO).log("  ✓ Dropping items (with correct quantity)");
+        LOGGER.at(Level.INFO).log("  ✓ Picking up items");
+        LOGGER.at(Level.INFO).log("  ? Player disconnect (test this)");
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("Note: Block breaking requires ECS system (see BreakBlockEventSystem.java)");
+        LOGGER.at(Level.INFO).log("Block placing, interaction, crafting, and gamemode changes");
+        LOGGER.at(Level.INFO).log("are not available through simple events.");
     }
 }
