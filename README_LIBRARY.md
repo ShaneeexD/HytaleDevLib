@@ -10,12 +10,32 @@ Simplified event registration for common game events. Handles the boilerplate of
 **What it does:**
 - Registers event listeners without manual EventRegistry calls
 - Parses `LivingEntityInventoryChangeEvent` transactions to extract item details
-- Provides callbacks for item drops, pickups, and player joins
+- Provides callbacks for item drops, pickups, player joins, chat, and disconnects
 
 **When to use:**
 - Detecting when players drop or pick up items
-- Tracking player join events
+- Tracking player join/disconnect events
+- Monitoring chat messages
 - Avoiding manual transaction string parsing
+
+---
+
+### 1.5. EcsEventHelper
+Simplified ECS event registration for block-related events. Automatically handles the complex ECS system registration required for events like block breaking and placing.
+
+**What it does:**
+- Creates and registers ECS systems automatically
+- Provides simple callbacks for block breaking and placing
+- Filters out false positives (e.g., "Empty" blocks during placement)
+- Extracts block type and item information from events
+
+**When to use:**
+- Detecting when players break or place blocks
+- Building protection systems or region management
+- Tracking block modifications
+- Creating custom building mechanics
+
+**Important:** ECS events must be registered after you have a World instance, typically in the `AddPlayerToWorldEvent` callback.
 
 ---
 
@@ -130,14 +150,137 @@ EventHelper.onItemPickup(this, (itemId, quantity) -> {
 });
 ```
 
-#### `onPlayerJoin(plugin, callback)`
+#### `onPlayerJoinWorld(plugin, callback)`
 Fires when a player joins the world.
 
 ```java
-EventHelper.onPlayerJoin(this, player -> {
-    getLogger().at(Level.INFO).log("Player joined: " + player.getName());
+EventHelper.onPlayerJoinWorld(this, world -> {
+    getLogger().at(Level.INFO).log("Player joined world: " + world.getName());
     // Example: Send welcome message, initialize player data
 });
+```
+
+#### `onPlayerChat(plugin, callback)`
+Detects when a player sends a chat message.
+
+```java
+EventHelper.onPlayerChat(this, (username, message) -> {
+    getLogger().at(Level.INFO).log(username + " said: " + message);
+    // Example: Chat filtering, command detection, logging
+});
+```
+
+#### `onPlayerDisconnect(plugin, callback)`
+Fires when a player disconnects from the server.
+
+```java
+EventHelper.onPlayerDisconnect(this, (username) -> {
+    getLogger().at(Level.INFO).log(username + " left the server");
+    // Example: Save player data, broadcast leave message
+});
+```
+
+---
+
+### EcsEventHelper Methods
+
+EcsEventHelper provides simplified access to ECS-based events that require system registration. These methods automatically create and register the necessary ECS systems for you.
+
+**Important:** ECS events must be registered after you have a World instance. Register them in the `AddPlayerToWorldEvent` callback.
+
+#### `onBlockBreak(world, callback)`
+Detects when a player breaks a block.
+
+```java
+// Register in AddPlayerToWorldEvent callback
+this.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
+    World world = event.getWorld();
+    
+    EcsEventHelper.onBlockBreak(world, (position, blockTypeId) -> {
+        getLogger().at(Level.INFO).log("Block broken: " + blockTypeId + " at " + position);
+        // Example: Track mining, prevent breaking in protected areas, drop custom items
+    });
+});
+```
+
+**Features:**
+- Automatically filters out "Empty" blocks (prevents false positives during block placement)
+- Provides block type ID (e.g., "Soil_Dirt", "Rock_Stone")
+- Provides exact block position as Vector3i
+
+#### `onBlockPlace(world, callback)`
+Detects when a player places a block.
+
+```java
+// Register in AddPlayerToWorldEvent callback
+this.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
+    World world = event.getWorld();
+    
+    EcsEventHelper.onBlockPlace(world, (position, itemId) -> {
+        getLogger().at(Level.INFO).log("Block placed: " + itemId + " at " + position);
+        // Example: Track building, prevent placing in protected areas, custom placement logic
+    });
+});
+```
+
+**Features:**
+- Provides the item ID being placed from the player's hand
+- Provides exact block position as Vector3i
+- Fires for all block placements
+
+#### Complete ECS Event Example
+
+```java
+@Override
+protected void setup() {
+    // Register simple global events
+    EventHelper.onPlayerChat(this, (username, message) -> {
+        getLogger().at(Level.INFO).log("[Chat] " + username + ": " + message);
+    });
+    
+    EventHelper.onItemDrop(this, (itemId, quantity) -> {
+        getLogger().at(Level.INFO).log("[Drop] " + quantity + "x " + itemId);
+    });
+    
+    // Register ECS events when world is available
+    this.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
+        World world = event.getWorld();
+        
+        // Now we can register ECS events
+        EcsEventHelper.onBlockBreak(world, (position, blockTypeId) -> {
+            getLogger().at(Level.INFO).log("[Break] " + blockTypeId + " at " + position);
+            
+            // Example: Protected region system
+            if (isInProtectedRegion(position)) {
+                // Note: You can't cancel the event from here, but you can
+                // restore the block or take other actions
+                BlockHelper.setBlockByName(world, position, blockTypeId);
+                WorldHelper.broadcastMessage(world, Message.raw("Cannot break blocks in protected area!"));
+            }
+        });
+        
+        EcsEventHelper.onBlockPlace(world, (position, itemId) -> {
+            getLogger().at(Level.INFO).log("[Place] " + itemId + " at " + position);
+            
+            // Example: Build limit system
+            if (isAboveBuildLimit(position)) {
+                // Remove the placed block
+                BlockHelper.setBlock(world, position, 0); // 0 = air
+                WorldHelper.broadcastMessage(world, Message.raw("Cannot build above Y=100!"));
+            }
+        });
+    });
+}
+
+private boolean isInProtectedRegion(Vector3i position) {
+    // Check if position is in a protected area
+    return position.getX() >= 0 && position.getX() <= 100 &&
+           position.getZ() >= 0 && position.getZ() <= 100;
+}
+
+private boolean isAboveBuildLimit(Vector3i position) {
+    return position.getY() > 100;
+}
 ```
 
 ---
