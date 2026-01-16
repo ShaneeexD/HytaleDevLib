@@ -1,0 +1,146 @@
+package org.hytaledevlib.lib;
+
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.component.dependency.Dependency;
+import com.hypixel.hytale.component.dependency.RootDependency;
+import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.component.system.EntityEventSystem;
+import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.BiConsumer;
+
+/**
+ * EcsEventHelper - Helper methods for ECS-based events (block breaking, placing, etc.)
+ * 
+ * These events require ECS systems to be registered with the world's EntityStore.
+ * This helper simplifies the process by creating and registering systems automatically.
+ * 
+ * IMPORTANT: These methods must be called AFTER you have access to a World instance,
+ * typically in the AddPlayerToWorldEvent callback.
+ */
+public class EcsEventHelper {
+    
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    
+    /**
+     * Register a callback for when a player breaks a block.
+     * 
+     * This creates and registers an ECS system to handle BreakBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback BiConsumer that receives the block position and block type ID
+     */
+    public static void onBlockBreak(World world, BiConsumer<Vector3i, String> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, BreakBlockEvent> system = new EntityEventSystem<EntityStore, BreakBlockEvent>(BreakBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final BreakBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        
+                        // Filter out "Empty" blocks - these are triggered when placing blocks
+                        // and don't represent actual block breaking
+                        if (!"Empty".equals(blockTypeId)) {
+                            callback.accept(position, blockTypeId);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockBreak callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockBreak ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockBreak system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Register a callback for when a player places a block.
+     * 
+     * This creates and registers an ECS system to handle PlaceBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback BiConsumer that receives the block position and item ID being placed
+     */
+    public static void onBlockPlace(World world, BiConsumer<Vector3i, String> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, PlaceBlockEvent> system = new EntityEventSystem<EntityStore, PlaceBlockEvent>(PlaceBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final PlaceBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        // Get the item being placed from the player's hand
+                        String itemId = event.getItemInHand() != null ? event.getItemInHand().getItemId() : "Unknown";
+                        callback.accept(position, itemId);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockPlace callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockPlace ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockPlace system: " + e.getMessage());
+        }
+    }
+}

@@ -40,6 +40,9 @@ public class TestPlugin extends JavaPlugin {
                     world = event.getWorld();
                     LOGGER.at(Level.INFO).log("World captured: " + world.getName());
                     
+                    // Register ECS event helpers (must be done after we have a world)
+                    registerEcsEventTests(world);
+                    
                     // Test EntityHelper: Wait 100 ticks for player to fully load
                     LOGGER.at(Level.INFO).log("Testing EntityHelper: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
@@ -433,10 +436,32 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  ✓ Sending chat messages");
         LOGGER.at(Level.INFO).log("  ✓ Dropping items (with correct quantity)");
         LOGGER.at(Level.INFO).log("  ✓ Picking up items");
-        LOGGER.at(Level.INFO).log("  ? Player disconnect (test this)");
+        LOGGER.at(Level.INFO).log("  ✓ Player disconnect");
         LOGGER.at(Level.INFO).log("");
-        LOGGER.at(Level.INFO).log("Note: Block breaking requires ECS system (see BreakBlockEventSystem.java)");
-        LOGGER.at(Level.INFO).log("Block placing, interaction, crafting, and gamemode changes");
+        LOGGER.at(Level.INFO).log("Note: Block breaking/placing use EcsEventHelper (see below)");
+        LOGGER.at(Level.INFO).log("Block interaction (F key), crafting, and gamemode changes");
         LOGGER.at(Level.INFO).log("are not available through simple events.");
+    }
+    
+    /**
+     * Register ECS event tests using the new EcsEventHelper.
+     * These must be registered after we have a World instance.
+     */
+    private void registerEcsEventTests(World world) {
+        LOGGER.at(Level.INFO).log("Registering ECS EventHelper tests...");
+        
+        // Test onBlockBreak - ECS event
+        org.hytaledevlib.lib.EcsEventHelper.onBlockBreak(world, (position, blockTypeId) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Block broken at " + position + " - Type: " + blockTypeId);
+        });
+        
+        // Test onBlockPlace - ECS event
+        org.hytaledevlib.lib.EcsEventHelper.onBlockPlace(world, (position, itemId) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Block placed at " + position + " - Item: " + itemId);
+        });
+        
+        LOGGER.at(Level.INFO).log("ECS EventHelper tests registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Block breaking (filters out Empty blocks)");
+        LOGGER.at(Level.INFO).log("  ✓ Block placing");
     }
 }

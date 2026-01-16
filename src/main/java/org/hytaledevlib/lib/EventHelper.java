@@ -125,14 +125,10 @@ public class EventHelper {
         });
     }
     
-    // NOTE: Block breaking is not available through simple event registration.
-    // BreakBlockEvent is an ECS event that requires creating an EntityEventSystem.
-    // See BreakBlockEventSystem.java in the plugin/systems folder for an example.
-    // This is too complex for a simple helper method.
-    
-    // NOTE: Block placing is not available as a separate event.
-    // PlaceBlockEvent doesn't fire reliably - block placement uses inventory MOVE transactions instead.
-    // Use LivingEntityInventoryChangeEvent with action=MOVE to detect block placement if needed.
+    // NOTE: Block breaking and placing are available through EcsEventHelper!
+    // These events require ECS systems, which are handled automatically by EcsEventHelper.
+    // Use EcsEventHelper.onBlockBreak(world, callback) and EcsEventHelper.onBlockPlace(world, callback)
+    // These must be called after you have a World instance (e.g., in AddPlayerToWorldEvent).
     
     // NOTE: Block interaction (F key) is not available through UseBlockEvent.
     // UseBlockEvent.Pre doesn't fire for the F key interaction in Hytale.
