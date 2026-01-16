@@ -10,7 +10,9 @@ import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -142,5 +144,81 @@ public class EcsEventHelper {
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to register onBlockPlace system: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Register a callback for when a player damages a block (mining progress).
+     * 
+     * This creates and registers an ECS system to handle DamageBlockEvent.
+     * This event fires continuously while a player is mining/damaging a block.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives block position, block type ID, current damage, damage amount, and item in hand
+     */
+    public static void onBlockDamage(World world, BlockDamageCallback callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, DamageBlockEvent> system = new EntityEventSystem<EntityStore, DamageBlockEvent>(DamageBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final DamageBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        float currentDamage = event.getCurrentDamage();
+                        float damage = event.getDamage();
+                        ItemStack itemInHand = event.getItemInHand();
+                        String itemId = itemInHand != null ? itemInHand.getItemId() : null;
+                        
+                        callback.accept(position, blockTypeId, currentDamage, damage, itemId);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockDamage callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockDamage ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockDamage system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Functional interface for block damage callbacks.
+     * Provides detailed information about block mining progress.
+     */
+    @FunctionalInterface
+    public interface BlockDamageCallback {
+        /**
+         * Called when a block is damaged by a player.
+         * 
+         * @param position The position of the block being damaged
+         * @param blockTypeId The block type ID (e.g., "Rock_Stone")
+         * @param currentDamage The current accumulated damage on the block
+         * @param damage The amount of damage being applied this tick
+         * @param itemInHand The item ID in the player's hand (null if empty)
+         */
+        void accept(Vector3i position, String blockTypeId, float currentDamage, float damage, @Nullable String itemInHand);
     }
 }

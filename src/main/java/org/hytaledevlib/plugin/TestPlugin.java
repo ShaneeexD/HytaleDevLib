@@ -547,8 +547,18 @@ public class TestPlugin extends JavaPlugin {
             LOGGER.at(Level.INFO).log("[EcsEventTest] Block placed at " + position + " - Item: " + itemId);
         });
         
+        // Test onBlockDamage - ECS event (mining progress)
+        org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (position, blockTypeId, currentDamage, damage, itemInHand) -> {
+            String tool = itemInHand != null ? itemInHand : "Hand";
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Block damage at " + position + " - Type: " + blockTypeId + 
+                " | Current: " + String.format("%.2f", currentDamage) + 
+                " | Damage: " + String.format("%.2f", damage) + 
+                " | Tool: " + tool);
+        });
+        
         LOGGER.at(Level.INFO).log("ECS EventHelper tests registered!");
         LOGGER.at(Level.INFO).log("  ✓ Block breaking (filters out Empty blocks)");
         LOGGER.at(Level.INFO).log("  ✓ Block placing");
+        LOGGER.at(Level.INFO).log("  ✓ Block damage (mining progress tracking)");
     }
 }
