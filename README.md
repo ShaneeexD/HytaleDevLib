@@ -10,9 +10,6 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 **[View Full Documentation on Wiki →](https://github.com/ShaneeexD/HytaleDevLib/wiki)**
 
-- **[Library Documentation](https://github.com/ShaneeexD/HytaleDevLib/wiki/Library-Documentation)** - Complete API reference with usage examples
-- **[Block Mapping Guide](https://github.com/ShaneeexD/HytaleDevLib/wiki/Block-Mapping-Usage)** - 3,951 block names reference
-
 ## Features
 
 HytaleDevLib provides five main helper classes that simplify Hytale plugin development:
