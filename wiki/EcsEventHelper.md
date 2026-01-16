@@ -18,7 +18,7 @@ EcsEventHelper provides simplified access to ECS-based events in Hytale. These e
 
 ## Important Note
 
-⚠️ **ECS events must be registered after you have a World instance.** Register them in the `AddPlayerToWorldEvent` callback, not in your plugin's `setup()` method.
+**ECS events must be registered after you have a World instance.** Register them in the `AddPlayerToWorldEvent` callback, not in your plugin's `setup()` method.
 
 ## Available Methods
 

@@ -1,90 +1,58 @@
-# HytaleDevLib Wiki
+# HytaleDevLib
 
-Welcome to the HytaleDevLib documentation! This library simplifies common Hytale modding tasks by providing tested helpers, utilities, and workarounds for the Hytale API.
+A utility library that simplifies common Hytale modding tasks by providing tested helpers, utilities, and workarounds for the Hytale API.
 
-## Quick Links
+## Documentation
 
-- [Getting Started](Getting-Started)
-- [Installation](Installation)
-- [API Reference](API-Reference)
+- [Library Documentation](https://github.com/ShaneeexD/HytaleDevLib/blob/plugin/README_LIBRARY.md) - Complete HytaleDevLib API reference and usage guide
 
 ## Helper Classes
 
-### Event Helpers
-- **[EventHelper](EventHelper)** - Simple global event registration (chat, items, player join/disconnect)
-- **[EcsEventHelper](EcsEventHelper)** - ECS-based events (block breaking, placing) ⭐ NEW
+- [EventHelper](EventHelper) - Simple global event registration (chat, items, player join/disconnect)
+- [EcsEventHelper](EcsEventHelper) - ECS-based events (block breaking, placing)
+- [WorldHelper](WorldHelper) - World operations, tick tracking, time/day system
+- [EntityHelper](EntityHelper) - Entity queries, teleportation, NPC spawning
+- [BlockHelper](BlockHelper) - Block manipulation, region operations
+- [ComponentHelper](ComponentHelper) - ECS component operations
 
-### World & Entity Helpers
-- **[WorldHelper](WorldHelper)** - World operations, tick tracking, time/day system
-- **[EntityHelper](EntityHelper)** - Entity queries, teleportation, NPC spawning
-- **[BlockHelper](BlockHelper)** - Block manipulation, region operations
+## Features
 
-### Component Helpers
-- **[ComponentHelper](ComponentHelper)** - ECS component operations
+This project provides a comprehensive utility library for Hytale modding with helpers for:
 
-## Event System Overview
+- Event handling - Item drops, pickups, player joins, chat, disconnects, block breaking/placing
+- Entity management - Teleportation, proximity searches, player homes, entity iteration, NPC spawning
+- World operations - Tick tracking, messaging, logging, time/day system
+- Block operations - Name-based block setting, region filling, block finding
+- ECS component manipulation - Type-safe component operations
 
-HytaleDevLib provides two types of event helpers:
+## Quick Start
 
-### EventHelper (Simple Global Events)
-Use for events that can be registered globally:
-- Player chat messages
-- Item drops and pickups
-- Player join/disconnect events
-
-**Example:**
 ```java
-EventHelper.onPlayerChat(this, (username, message) -> {
-    getLogger().at(Level.INFO).log(username + " said: " + message);
+// Example: Detect item drops
+EventHelper.onItemDrop(plugin, (itemId, quantity) -> {
+    WorldHelper.log(world, "Dropped: " + itemId + " x" + quantity);
 });
-```
 
-### EcsEventHelper (ECS-Based Events)
-Use for events that require ECS system registration:
-- Block breaking
-- Block placing
+// Example: Teleport all cows to a location
+List<Entity> allEntities = EntityHelper.getAllEntities(world);
+for (Entity entity : allEntities) {
+    if ("Cow".equals(EntityHelper.getEntityType(entity))) {
+        EntityHelper.teleport(entity, new Vector3d(100, 64, 100));
+    }
+}
 
-**Example:**
-```java
+// Example: Detect block breaking
 this.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
     World world = event.getWorld();
     
     EcsEventHelper.onBlockBreak(world, (position, blockTypeId) -> {
-        getLogger().at(Level.INFO).log("Block broken: " + blockTypeId);
+        WorldHelper.log(world, "Block broken: " + blockTypeId + " at " + position);
     });
 });
 ```
 
-## Features
+## Links
 
-✅ **Simple Event Registration** - No boilerplate code  
-✅ **Block Operations** - Name-based block setting (e.g., "Rock_Stone")  
-✅ **Entity Management** - Find, teleport, spawn NPCs  
-✅ **Tick Tracking** - Schedule delayed tasks and periodic callbacks  
-✅ **Time & Day System** - Get/set game time, detect day/night  
-✅ **Thread Safety** - Execute tasks on world's main thread  
-✅ **ECS Support** - Simplified ECS event registration  
-
-## Latest Updates
-
-### Version 0.1.4
-- ✨ Added **EcsEventHelper** for block breaking and placing events
-- ✅ Fixed item drop quantity reporting (now shows actual quantity dropped)
-- ✅ Added `onPlayerChat()` for chat message detection
-- ✅ Added `onPlayerDisconnect()` for player disconnect tracking
-- 🔧 Block break events now filter out "Empty" blocks automatically
-- 📝 Comprehensive documentation and examples
-
-## Getting Help
-
-- Check the [API Reference](API-Reference) for detailed method documentation
-- See [Examples](Examples) for common use cases
-- Visit the [GitHub Issues](https://github.com/ShaneeexD/HytaleDevLib/issues) page for bug reports
-
-## Contributing
-
-Found a working pattern or API discovery? Contributions welcome! See the [Contributing Guide](Contributing) for details.
-
-## License
-
-MIT License - Free to use in your Hytale mods
+- [GitHub Repository](https://github.com/ShaneeexD/HytaleDevLib)
+- [Hytale Modding Docs](https://hytalemodding.dev)
+- [Hytale API Reference](https://hytalemodding.dev/en/docs/server/api)
