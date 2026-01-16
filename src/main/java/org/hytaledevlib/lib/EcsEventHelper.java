@@ -11,10 +11,12 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.DiscoverZoneEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nonnull;
@@ -205,6 +207,58 @@ public class EcsEventHelper {
     }
     
     /**
+     * Register a callback for when a player discovers a new zone.
+     * 
+     * This creates and registers an ECS system to handle DiscoverZoneEvent.Display.
+     * This event fires when a player enters a new zone for the first time.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives zone discovery information
+     */
+    public static void onZoneDiscovery(World world, ZoneDiscoveryCallback callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, DiscoverZoneEvent.Display> system = new EntityEventSystem<EntityStore, DiscoverZoneEvent.Display>(DiscoverZoneEvent.Display.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final DiscoverZoneEvent.Display event) {
+                    try {
+                        WorldMapTracker.ZoneDiscoveryInfo discoveryInfo = event.getDiscoveryInfo();
+                        callback.accept(discoveryInfo);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onZoneDiscovery callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onZoneDiscovery ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onZoneDiscovery system: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Functional interface for block damage callbacks.
      * Provides detailed information about block mining progress.
      */
@@ -220,5 +274,19 @@ public class EcsEventHelper {
          * @param itemInHand The item ID in the player's hand (null if empty)
          */
         void accept(Vector3i position, String blockTypeId, float currentDamage, float damage, @Nullable String itemInHand);
+    }
+    
+    /**
+     * Functional interface for zone discovery callbacks.
+     * Provides information about discovered zones.
+     */
+    @FunctionalInterface
+    public interface ZoneDiscoveryCallback {
+        /**
+         * Called when a player discovers a new zone.
+         * 
+         * @param discoveryInfo The zone discovery information containing zone name, region, display settings, etc.
+         */
+        void accept(WorldMapTracker.ZoneDiscoveryInfo discoveryInfo);
     }
 }

@@ -561,10 +561,20 @@ public class TestPlugin extends JavaPlugin {
                 " | Tool: " + tool);
         });
         
+        // Test onZoneDiscovery - ECS event (zone exploration)
+        org.hytaledevlib.lib.EcsEventHelper.onZoneDiscovery(world, (discoveryInfo) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Zone discovered: " + discoveryInfo.zoneName());
+            LOGGER.at(Level.INFO).log("  Region: " + discoveryInfo.regionName());
+            LOGGER.at(Level.INFO).log("  Major: " + discoveryInfo.major());
+            if (discoveryInfo.icon() != null) {
+                LOGGER.at(Level.INFO).log("  Icon: " + discoveryInfo.icon());
+            }
+        });
         
         LOGGER.at(Level.INFO).log("ECS EventHelper tests registered!");
         LOGGER.at(Level.INFO).log("  ✓ Block breaking (filters out Empty blocks)");
         LOGGER.at(Level.INFO).log("  ✓ Block placing");
         LOGGER.at(Level.INFO).log("  ✓ Block damage (mining progress tracking)");
+        LOGGER.at(Level.INFO).log("  ✓ Zone discovery (map exploration)");
     }
 }
