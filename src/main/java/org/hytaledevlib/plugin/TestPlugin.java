@@ -43,9 +43,11 @@ public class TestPlugin extends JavaPlugin {
                     // Register ECS event helpers (must be done after we have a world)
                     registerEcsEventTests(world);
                     
-                    // Test EntityHelper: Wait 100 ticks for player to fully load
-                    LOGGER.at(Level.INFO).log("Testing EntityHelper: Will run tests in 100 ticks (5 seconds)...");
+                    // Test all helpers: Wait 100 ticks for player to fully load
+                    LOGGER.at(Level.INFO).log("Testing all helpers: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
+                        testInventoryHelper(world);
+                        testPlayerHelper(world);
                         testEntityHelper(world);
                     });
                 } catch (Exception e) {
@@ -58,6 +60,91 @@ public class TestPlugin extends JavaPlugin {
         registerEventTests();
         
         LOGGER.at(Level.INFO).log("Test plugin setup complete! Waiting for player to join...");
+    }
+    
+    private void testInventoryHelper(World world) {
+        LOGGER.at(Level.INFO).log("=== InventoryHelper Tests Starting ===");
+        
+        try {
+            if (WorldHelper.getPlayerCount(world) == 0) {
+                LOGGER.at(Level.WARNING).log("No players found in world!");
+                return;
+            }
+            
+            com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+            
+            // Test 1: Give items
+            LOGGER.at(Level.INFO).log("Test 1: Giving 10 Ingredient_Bone_Fragment to player...");
+            boolean gaveItems = org.hytaledevlib.lib.InventoryHelper.giveItem(player, "Ingredient_Bone_Fragment", 10);
+            LOGGER.at(Level.INFO).log("  Result: " + (gaveItems ? "✓ Success" : "✗ Failed"));
+            
+            // Test 2: Count items
+            int diamondCount = org.hytaledevlib.lib.InventoryHelper.countItem(player, "Ingredient_Bone_Fragment");
+            LOGGER.at(Level.INFO).log("Test 2: Player has " + diamondCount + " Ingredient_Bone_Fragments");
+            
+            // Test 3: Check if has items
+            boolean hasDiamonds = org.hytaledevlib.lib.InventoryHelper.hasItem(player, "Ingredient_Bone_Fragment", 5);
+            LOGGER.at(Level.INFO).log("Test 3: Has at least 5 Ingredient_Bone_Fragment? " + (hasDiamonds ? "✓ Yes" : "✗ No"));
+            
+            // Test 4: Get active hotbar item
+            com.hypixel.hytale.server.core.inventory.ItemStack activeItem = org.hytaledevlib.lib.InventoryHelper.getActiveHotbarItem(player);
+            if (activeItem != null) {
+                LOGGER.at(Level.INFO).log("Test 4: Active hotbar item: " + activeItem.getItemId() + " x" + activeItem.getQuantity());
+            } else {
+                LOGGER.at(Level.INFO).log("Test 4: No active hotbar item (empty slot)");
+            }
+            
+            // Test 5: Get empty slot count
+            int emptySlots = org.hytaledevlib.lib.InventoryHelper.getEmptySlotCount(player);
+            LOGGER.at(Level.INFO).log("Test 5: Empty inventory slots: " + emptySlots);
+            
+            // Test 6: Check if inventory is full
+            boolean isFull = org.hytaledevlib.lib.InventoryHelper.isInventoryFull(player);
+            LOGGER.at(Level.INFO).log("Test 6: Inventory full? " + (isFull ? "Yes" : "No"));
+            
+            // Test 7: Get all items
+            java.util.List<com.hypixel.hytale.server.core.inventory.ItemStack> allItems = org.hytaledevlib.lib.InventoryHelper.getAllItems(player);
+            LOGGER.at(Level.INFO).log("Test 7: Total items in inventory: " + allItems.size());
+            
+            LOGGER.at(Level.INFO).log("=== InventoryHelper Tests Complete ===");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("InventoryHelper test error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void testPlayerHelper(World world) {
+        LOGGER.at(Level.INFO).log("=== PlayerHelper Tests Starting ===");
+        
+        try {
+            if (WorldHelper.getPlayerCount(world) == 0) {
+                LOGGER.at(Level.WARNING).log("No players found in world!");
+                return;
+            }
+            
+            com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+            
+            // Test 1: Get game mode
+            com.hypixel.hytale.protocol.GameMode gameMode = org.hytaledevlib.lib.PlayerHelper.getGameMode(player);
+            LOGGER.at(Level.INFO).log("Test 1: Player game mode: " + (gameMode != null ? gameMode.toString() : "null"));
+            
+            // Test 2: Send message
+            boolean sentMessage = org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Hello from PlayerHelper test!");
+            LOGGER.at(Level.INFO).log("Test 2: Sent message to player: " + (sentMessage ? "✓ Success" : "✗ Failed"));
+            
+            // Test 3: Check permission
+            boolean hasTestPerm = org.hytaledevlib.lib.PlayerHelper.hasPermission(player, "test.permission");
+            LOGGER.at(Level.INFO).log("Test 3: Has 'test.permission': " + (hasTestPerm ? "Yes" : "No"));
+            
+            // Test 4: Check permission with default
+            boolean hasAdminPerm = org.hytaledevlib.lib.PlayerHelper.hasPermission(player, "admin.permission", false);
+            LOGGER.at(Level.INFO).log("Test 4: Has 'admin.permission' (default false): " + (hasAdminPerm ? "Yes" : "No"));
+            
+            LOGGER.at(Level.INFO).log("=== PlayerHelper Tests Complete ===");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("PlayerHelper test error: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     private void testEntityHelper(World world) {
