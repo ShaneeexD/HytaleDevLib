@@ -519,6 +519,11 @@ public class TestPlugin extends JavaPlugin {
             LOGGER.at(Level.INFO).log("[EventTest] Item picked up: " + quantity + "x " + itemId);
         });
         
+        // Test onCraftRecipe - Testing inventory transaction detection
+        org.hytaledevlib.lib.EventHelper.onCraftRecipe(this, (outputItemId, quantity) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Item crafted: " + quantity + "x " + outputItemId);
+        });
+        
         LOGGER.at(Level.INFO).log("EventHelper tests registered! Working events:");
         LOGGER.at(Level.INFO).log("  ✓ Sending chat messages");
         LOGGER.at(Level.INFO).log("  ✓ Dropping items (with correct quantity)");
@@ -555,6 +560,7 @@ public class TestPlugin extends JavaPlugin {
                 " | Damage: " + String.format("%.2f", damage) + 
                 " | Tool: " + tool);
         });
+        
         
         LOGGER.at(Level.INFO).log("ECS EventHelper tests registered!");
         LOGGER.at(Level.INFO).log("  ✓ Block breaking (filters out Empty blocks)");
