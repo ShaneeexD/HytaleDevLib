@@ -44,22 +44,24 @@ public class TestPlugin extends JavaPlugin {
                     registerEcsEventTests(world);
                     
                     // Generate block list for wiki
-                    LOGGER.at(Level.INFO).log("Generating block list for wiki...");
-                    String blockListPath = "wiki/BlockList.md";
-                    int blockCount = org.hytaledevlib.tools.BlockListGenerator.generateBlockList(blockListPath);
-                    LOGGER.at(Level.INFO).log("Block count returned: " + blockCount);
-                    if (blockCount > 0) {
-                        LOGGER.at(Level.INFO).log("✓ Generated block list with " + blockCount + " blocks at: " + blockListPath);
-                    } else {
-                        LOGGER.at(Level.WARNING).log("✗ Failed to generate block list (returned " + blockCount + ")");
-                    }
+                    // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
+                    // String blockListPath = "wiki/BlockList.md";
+                    // int blockCount = org.hytaledevlib.tools.BlockListGenerator.generateBlockList(blockListPath);
+                    // LOGGER.at(Level.INFO).log("Block count returned: " + blockCount);
+                    // if (blockCount > 0) {
+                    //     LOGGER.at(Level.INFO).log("✓ Generated block list with " + blockCount + " blocks at: " + blockListPath);
+                    // } else {
+                    //     LOGGER.at(Level.WARNING).log("✗ Failed to generate block list (returned " + blockCount + ")");
+                    // }
                     
                     // Test all helpers: Wait 100 ticks for player to fully load
-                    LOGGER.at(Level.INFO).log("Testing all helpers: Will run tests in 100 ticks (5 seconds)...");
+                    LOGGER.at(Level.INFO).log("Testing helpers: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
-                        testInventoryHelper(world);
-                        testPlayerHelper(world);
-                        testEntityHelper(world);
+                        // testInventoryHelper(world);
+                        // testPlayerHelper(world);
+                        // testEntityHelper(world);
+                        // testUIHelper(world);
+                        testBlockStateHelper(world);
                     });
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
@@ -466,6 +468,181 @@ public class TestPlugin extends JavaPlugin {
             
         } catch (Exception e) {
             LOGGER.at(Level.SEVERE).log("Error during EntityHelper tests: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void testUIHelper(World world) {
+        LOGGER.at(Level.INFO).log("=== UIHelper Tests Starting ===");
+        
+        try {
+            if (WorldHelper.getPlayerCount(world) == 0) {
+                LOGGER.at(Level.WARNING).log("No players found in world!");
+                return;
+            }
+            
+            com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+            
+            // Test 1: Hide specific HUD components
+            // Test 0: Log player skin data
+            LOGGER.at(Level.INFO).log("Test 0: Retrieving player skin data...");
+            com.hypixel.hytale.protocol.PlayerSkin skin = org.hytaledevlib.lib.PlayerHelper.getPlayerSkin(player);
+            if (skin != null) {
+                LOGGER.at(Level.INFO).log("=== Player Appearance Data ===");
+                LOGGER.at(Level.INFO).log("  Body Characteristic: " + (skin.bodyCharacteristic != null ? skin.bodyCharacteristic : "None"));
+                LOGGER.at(Level.INFO).log("  Face: " + (skin.face != null ? skin.face : "None"));
+                LOGGER.at(Level.INFO).log("  Eyes: " + (skin.eyes != null ? skin.eyes : "None"));
+                LOGGER.at(Level.INFO).log("  Ears: " + (skin.ears != null ? skin.ears : "None"));
+                LOGGER.at(Level.INFO).log("  Mouth: " + (skin.mouth != null ? skin.mouth : "None"));
+                LOGGER.at(Level.INFO).log("  Facial Hair: " + (skin.facialHair != null ? skin.facialHair : "None"));
+                LOGGER.at(Level.INFO).log("  Haircut: " + (skin.haircut != null ? skin.haircut : "None"));
+                LOGGER.at(Level.INFO).log("  Eyebrows: " + (skin.eyebrows != null ? skin.eyebrows : "None"));
+                LOGGER.at(Level.INFO).log("  Underwear: " + (skin.underwear != null ? skin.underwear : "None"));
+                LOGGER.at(Level.INFO).log("  Pants: " + (skin.pants != null ? skin.pants : "None"));
+                LOGGER.at(Level.INFO).log("  Overpants: " + (skin.overpants != null ? skin.overpants : "None"));
+                LOGGER.at(Level.INFO).log("  Undertop: " + (skin.undertop != null ? skin.undertop : "None"));
+                LOGGER.at(Level.INFO).log("  Overtop: " + (skin.overtop != null ? skin.overtop : "None"));
+                LOGGER.at(Level.INFO).log("  Shoes: " + (skin.shoes != null ? skin.shoes : "None"));
+                LOGGER.at(Level.INFO).log("  Gloves: " + (skin.gloves != null ? skin.gloves : "None"));
+                LOGGER.at(Level.INFO).log("  Head Accessory: " + (skin.headAccessory != null ? skin.headAccessory : "None"));
+                LOGGER.at(Level.INFO).log("  Face Accessory: " + (skin.faceAccessory != null ? skin.faceAccessory : "None"));
+                LOGGER.at(Level.INFO).log("  Ear Accessory: " + (skin.earAccessory != null ? skin.earAccessory : "None"));
+                LOGGER.at(Level.INFO).log("  Skin Feature: " + (skin.skinFeature != null ? skin.skinFeature : "None"));
+                LOGGER.at(Level.INFO).log("  Cape: " + (skin.cape != null ? skin.cape : "None"));
+                LOGGER.at(Level.INFO).log("==============================");
+            } else {
+                LOGGER.at(Level.WARNING).log("  Could not retrieve player skin data!");
+            }
+            
+            LOGGER.at(Level.INFO).log("Test 1: Hiding hotbar, health, and stamina HUD components...");
+            boolean hideSuccess = org.hytaledevlib.lib.UIHelper.hideHudComponents(player, 
+                com.hypixel.hytale.protocol.packets.interface_.HudComponent.Hotbar,
+                com.hypixel.hytale.protocol.packets.interface_.HudComponent.Health,
+                com.hypixel.hytale.protocol.packets.interface_.HudComponent.Stamina);
+            LOGGER.at(Level.INFO).log("  Result: " + (hideSuccess ? "✓ Success" : "✗ Failed"));
+            
+            // Test 2: Show them back after 3 seconds
+            WorldHelper.waitTicks(world, 60, () -> {
+                LOGGER.at(Level.INFO).log("Test 2: Showing hotbar, health, and stamina back...");
+                boolean showSuccess = org.hytaledevlib.lib.UIHelper.showHudComponents(player,
+                    com.hypixel.hytale.protocol.packets.interface_.HudComponent.Hotbar,
+                    com.hypixel.hytale.protocol.packets.interface_.HudComponent.Health,
+                    com.hypixel.hytale.protocol.packets.interface_.HudComponent.Stamina);
+                LOGGER.at(Level.INFO).log("  Result: " + (showSuccess ? "✓ Success" : "✗ Failed"));
+            });
+            
+
+            // Test 5: Check visible HUD components
+            java.util.Set<com.hypixel.hytale.protocol.packets.interface_.HudComponent> visibleComponents = 
+                org.hytaledevlib.lib.UIHelper.getVisibleHudComponents(player);
+            if (visibleComponents != null) {
+                LOGGER.at(Level.INFO).log("Test 5: Currently visible HUD components: " + visibleComponents.size());
+            }
+            
+            LOGGER.at(Level.INFO).log("=== UIHelper Tests Complete ===");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("UIHelper test error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void testBlockStateHelper(World world) {
+        LOGGER.at(Level.INFO).log("=== BlockStateHelper Tests Starting ===");
+        
+        try {
+            if (WorldHelper.getPlayerCount(world) == 0) {
+                LOGGER.at(Level.WARNING).log("No players found in world!");
+                return;
+            }
+            
+            com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+            
+            // Get player position and calculate position behind them
+            com.hypixel.hytale.math.vector.Vector3d playerPos = org.hytaledevlib.lib.EntityHelper.getPosition(player);
+            if (playerPos == null) {
+                LOGGER.at(Level.WARNING).log("Could not get player position!");
+                return;
+            }
+            
+            // Place chest 2 blocks behind player (assuming they're facing +Z)
+            int chestX = (int) Math.floor(playerPos.x);
+            int chestY = (int) Math.floor(playerPos.y);
+            int chestZ = (int) Math.floor(playerPos.z - 2);
+            
+            LOGGER.at(Level.INFO).log("Test 1: Placing chest at (" + chestX + ", " + chestY + ", " + chestZ + ")...");
+            
+            // Place the chest block
+            boolean placed = org.hytaledevlib.lib.BlockHelper.setBlockByName(world, chestX, chestY, chestZ, "Furniture_Desert_Chest_Small");
+            if (!placed) {
+                LOGGER.at(Level.WARNING).log("  Failed to place chest block!");
+                return;
+            }
+            LOGGER.at(Level.INFO).log("  ✓ Chest block placed");
+            
+            // Wait a tick for the block to fully initialize
+            WorldHelper.waitTicks(world, 2, () -> {
+                try {
+                    LOGGER.at(Level.INFO).log("Test 2: Accessing chest state and adding items...");
+                    
+                    // Ensure the chest has state data
+                    com.hypixel.hytale.server.core.universe.world.meta.BlockState state = 
+                        org.hytaledevlib.lib.BlockStateHelper.ensureState(world, chestX, chestY, chestZ);
+                    
+                    if (state == null) {
+                        LOGGER.at(Level.WARNING).log("  Failed to get/create chest state!");
+                        return;
+                    }
+                    
+                    // Check if it's an ItemContainerState (chest)
+                    if (!(state instanceof com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState)) {
+                        LOGGER.at(Level.WARNING).log("  Block state is not an ItemContainerState!");
+                        return;
+                    }
+                    
+                    com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState chestState = 
+                        (com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerState) state;
+                    
+                    LOGGER.at(Level.INFO).log("  ✓ Got chest container state");
+                    
+                    // Get the item container
+                    com.hypixel.hytale.server.core.inventory.container.ItemContainer container = chestState.getItemContainer();
+                    if (container == null) {
+                        LOGGER.at(Level.WARNING).log("  Chest has no item container!");
+                        return;
+                    }
+                    
+                    // Use ItemHelper to easily add items to the chest in random slots
+                    int itemsAdded = org.hytaledevlib.lib.ItemHelper.fillContainerRandom(container,
+                        "Furniture_Crude_Torch", 1,
+                        "Ingredient_Bone_Fragment", 10
+                    );
+                    
+                    if (itemsAdded == 2) {
+                        LOGGER.at(Level.INFO).log("  ✓ Added 1 torch and 10 bone fragments to chest in random slots using ItemHelper");
+                        
+                        // Mark the state as needing to be saved
+                        org.hytaledevlib.lib.BlockStateHelper.markNeedsSave(chestState);
+                        LOGGER.at(Level.INFO).log("  ✓ Marked chest state for saving");
+                        
+                        // Use ItemHelper to get info about the chest
+                        int torchCount = org.hytaledevlib.lib.ItemHelper.countItemInContainer(container, "Furniture_Crude_Torch");
+                        int boneCount = org.hytaledevlib.lib.ItemHelper.countItemInContainer(container, "Ingredient_Bone_Fragment");
+                        LOGGER.at(Level.INFO).log("  Chest contains: " + torchCount + " torches, " + boneCount + " bone fragments");
+                    } else {
+                        LOGGER.at(Level.WARNING).log("  Failed to add all items (added " + itemsAdded + "/2)");
+                    }
+                    
+                    LOGGER.at(Level.INFO).log("=== BlockStateHelper Tests Complete ===");
+                    LOGGER.at(Level.INFO).log("Go check the chest behind you!");
+                    
+                } catch (Exception e) {
+                    LOGGER.at(Level.WARNING).log("Error in chest item test: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+            
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("BlockStateHelper test error: " + e.getMessage());
             e.printStackTrace();
         }
     }

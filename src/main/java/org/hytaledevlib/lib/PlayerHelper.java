@@ -1,10 +1,15 @@
 package org.hytaledevlib.lib;
 
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.GameMode;
+import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nullable;
 import java.util.logging.Level;
@@ -18,6 +23,61 @@ import java.util.logging.Level;
  */
 public class PlayerHelper {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+
+    /**
+     * Get the Player component from an entity.
+     * Internal helper method used by other helpers.
+     * 
+     * @param entity The entity
+     * @return The Player component, or null if not a player
+     */
+    @Nullable
+    static Player getPlayerComponent(Entity entity) {
+        if (entity instanceof Player) {
+            return (Player) entity;
+        }
+        return null;
+    }
+
+    /**
+     * Check if an entity is a player.
+     * 
+     * @param entity The entity to check
+     * @return true if the entity is a player
+     */
+    public static boolean isPlayer(Entity entity) {
+        return entity instanceof Player;
+    }
+    
+    /**
+     * Get a player's skin data containing all cosmetic information.
+     * The PlayerSkin contains:
+     * - Body characteristics
+     * - Face features (eyes, mouth, ears, facial hair, eyebrows)
+     * - Clothing (pants, tops, shoes, gloves)
+     * - Accessories (head, face, ear accessories, cape)
+     * 
+     * Note: This returns the skin data, not a rendered image. The avatar image
+     * you see in menus is rendered client-side from this data.
+     * 
+     * @param entity The player entity
+     * @return PlayerSkin object with all cosmetic data, or null if not available
+     */
+    @Nullable
+    public static PlayerSkin getPlayerSkin(Entity entity) {
+        try {
+            Ref<EntityStore> ref = entity.getReference();
+            if (ref == null) return null;
+            
+            Store<EntityStore> store = ref.getStore();
+            PlayerSkinComponent skinComponent = 
+                store.getComponent(ref, PlayerSkinComponent.getComponentType());
+            
+            return skinComponent != null ? skinComponent.getPlayerSkin() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     /**
      * Get the player's current game mode.

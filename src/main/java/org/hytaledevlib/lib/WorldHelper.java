@@ -117,10 +117,29 @@ public class WorldHelper {
      * Get the number of players in the world.
      * 
      * @param world The world
-     * @return Player count
+     * @return Number of players
      */
     public static int getPlayerCount(World world) {
-        return world.getPlayerCount();
+        return world.getPlayers().size();
+    }
+    
+    /**
+     * Get a chunk at the specified chunk coordinates.
+     * 
+     * @param world The world
+     * @param chunkX Chunk X coordinate
+     * @param chunkZ Chunk Z coordinate
+     * @return The WorldChunk, or null if not loaded
+     */
+    @javax.annotation.Nullable
+    public static com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk getChunk(World world, int chunkX, int chunkZ) {
+        try {
+            // Convert chunk coordinates to chunk index
+            long chunkIndex = com.hypixel.hytale.math.util.ChunkUtil.indexChunk(chunkX, chunkZ);
+            return world.getChunk(chunkIndex);
+        } catch (Exception e) {
+            return null;
+        }
     }
     
     /**
