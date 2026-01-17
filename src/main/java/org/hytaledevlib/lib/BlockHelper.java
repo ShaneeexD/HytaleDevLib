@@ -106,14 +106,19 @@ public class BlockHelper {
     }
     
     /**
-     * Get the block ID for a given block name using BlockMapping.
+     * Get the block ID for a given block name using the game's native BlockType asset map.
      * This allows working with block names instead of numeric IDs.
      * 
      * @param blockName The block name (e.g., "Rock_Stone", "Soil_Grass")
      * @return The block ID, or -1 if not found
      */
     public static int getBlockId(String blockName) {
-        return BlockMapping.getBlockId(blockName);
+        try {
+            int index = BlockType.getAssetMap().getIndex(blockName);
+            return index != Integer.MIN_VALUE ? index : -1;
+        } catch (Exception e) {
+            return -1;
+        }
     }
     
     /**
@@ -136,7 +141,7 @@ public class BlockHelper {
      * @return true if successful, false otherwise
      */
     public static boolean setBlockByName(World world, Vector3d position, String blockName) {
-        int blockId = BlockMapping.getBlockId(blockName);
+        int blockId = getBlockId(blockName);
         if (blockId == -1) {
             return false; // Block name not found
         }
@@ -154,7 +159,7 @@ public class BlockHelper {
      * @return true if successful, false otherwise
      */
     public static boolean setBlockByName(World world, int x, int y, int z, String blockName) {
-        int blockId = BlockMapping.getBlockId(blockName);
+        int blockId = getBlockId(blockName);
         if (blockId == -1) {
             return false; // Block name not found
         }
@@ -479,8 +484,8 @@ public class BlockHelper {
      * @return The number of blocks replaced, or -1 if block names are invalid
      */
     public static int replaceBlocksInRegionByName(World world, Vector3d pos1, Vector3d pos2, String oldBlockName, String newBlockName) {
-        int oldBlockId = BlockMapping.getBlockId(oldBlockName);
-        int newBlockId = BlockMapping.getBlockId(newBlockName);
+        int oldBlockId = getBlockId(oldBlockName);
+        int newBlockId = getBlockId(newBlockName);
         
         if (oldBlockId == -1 || newBlockId == -1) {
             return -1; // Invalid block names
@@ -499,7 +504,7 @@ public class BlockHelper {
      * @return The number of blocks set, or -1 if block name is invalid
      */
     public static int fillRegionByName(World world, Vector3d pos1, Vector3d pos2, String blockName) {
-        int blockId = BlockMapping.getBlockId(blockName);
+        int blockId = getBlockId(blockName);
         
         if (blockId == -1) {
             return -1; // Invalid block name
@@ -518,7 +523,7 @@ public class BlockHelper {
      * @return A list of positions where the block was found, or empty list if block name is invalid
      */
     public static List<Vector3i> findNearbyBlocksByName(World world, Vector3d center, int radius, String blockName) {
-        int blockId = BlockMapping.getBlockId(blockName);
+        int blockId = getBlockId(blockName);
         
         if (blockId == -1) {
             return new ArrayList<>(); // Invalid block name

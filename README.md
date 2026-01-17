@@ -45,12 +45,13 @@ HytaleDevLib provides eight main helper classes that simplify Hytale plugin deve
 
 ### BlockHelper
 - **Name-based block operations** - Minecraft-style block referencing
+- **Dynamic block ID resolution** - Uses game's native asset system for automatic compatibility
 - Get and set blocks at any position with automatic client sync
 - Fill or replace blocks in regions
 - Find blocks by type within radius
 - Count blocks in areas
 - World editing utilities
-- **3,951 block names** - Complete block ID mapping
+- Works with modded blocks automatically
 
 ### InventoryHelper 
 - Item management: give, remove, count items with quantity support
