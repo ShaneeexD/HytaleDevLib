@@ -17,6 +17,6 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "org.hytaledevlib.plugin.TestPlugin",
+    "Main": "org.grounditems.plugin.TestPlugin",
     "IncludesAssetPack": true
 }

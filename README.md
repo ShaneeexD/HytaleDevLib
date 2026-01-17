@@ -12,12 +12,19 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides five main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides eight main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
-- Simplified event registration for item drops, pickups, and player joins
+- Simplified event registration for item drops, pickups, and crafting
+- Player events: chat messages, join/disconnect tracking
 - Automatic transaction parsing for inventory events
 - No manual EventRegistry boilerplate
+
+### EcsEventHelper
+- Block events: break, place, and damage tracking with mining progress
+- Zone discovery: detect map exploration with zone metadata
+- Automatic ECS system registration for player events
+- Smart filtering to remove false positives (e.g., "Empty" blocks)
 
 ### WorldHelper
 - Thread-safe world operations
@@ -44,6 +51,18 @@ HytaleDevLib provides five main helper classes that simplify Hytale plugin devel
 - Count blocks in areas
 - World editing utilities
 - **3,951 block names** - Complete block ID mapping
+
+### InventoryHelper 
+- Item management: give, remove, count items with quantity support
+- Inventory checks: has item, is full, get active hotbar item
+- Player operations: clear inventory, check capacity
+- Safe API with null-safe operations and proper error handling
+
+### PlayerHelper
+- Messaging: send messages to players
+- Permissions: check player permissions
+- Game mode: get/check player game mode
+- Type checking: verify if entity is a player
 
 ### ComponentHelper
 - Type-safe ECS component operations
@@ -79,6 +98,24 @@ WorldHelper.setDayTime(world, 0.5);  // Set to noon
 EventHelper.onItemDrop(this, (itemId, quantity) -> {
     WorldHelper.log(world, "Dropped: " + itemId + " x" + quantity);
 });
+
+// Detect crafting (NEW in v0.1.4)
+EventHelper.onCraftRecipe(this, (itemId, quantity) -> {
+    WorldHelper.log(world, "Crafted: " + quantity + "x " + itemId);
+});
+
+// Track zone discoveries (NEW in v0.1.4)
+EcsEventHelper.onZoneDiscovery(world, (discoveryInfo) -> {
+    WorldHelper.log(world, "Discovered: " + discoveryInfo.zoneName());
+});
+
+// Give items to players (NEW in v0.1.4)
+InventoryHelper.giveItem(player, "Gem_Diamond", 5);
+
+// Check player permissions (NEW in v0.1.4)
+if (PlayerHelper.hasPermission(player, "admin.commands")) {
+    PlayerHelper.sendMessage(player, "You have admin access!");
+}
 
 // Run code every 5 seconds (100 ticks)
 WorldHelper.onTickInterval(world, 100, currentTick -> {
