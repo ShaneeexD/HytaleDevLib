@@ -38,12 +38,21 @@ public class BlockListGenerator {
      * @return Number of blocks exported
      */
     public static int generateBlockList(String outputPath) {
+        System.out.println("[BlockListGenerator] Starting block list generation...");
         try {
+            System.out.println("[BlockListGenerator] Getting BlockType asset map...");
             BlockTypeAssetMap<String, BlockType> assetMap = BlockType.getAssetMap();
+            
+            if (assetMap == null) {
+                System.err.println("[BlockListGenerator] ERROR: Asset map is null!");
+                return -1;
+            }
+            
             List<BlockInfo> blocks = new ArrayList<>();
             
             // Get the next index to know how many blocks exist
             int maxIndex = assetMap.getNextIndex();
+            System.out.println("[BlockListGenerator] Max block index: " + maxIndex);
             
             // Iterate through all block IDs and collect valid blocks
             for (int i = 0; i < maxIndex; i++) {
@@ -56,11 +65,24 @@ public class BlockListGenerator {
                 }
             }
             
+            System.out.println("[BlockListGenerator] Found " + blocks.size() + " valid blocks");
+            
             // Sort alphabetically by name
             Collections.sort(blocks);
             
             // Write to markdown file
-            try (FileWriter writer = new FileWriter(outputPath)) {
+            System.out.println("[BlockListGenerator] Writing to file: " + outputPath);
+            java.io.File outputFile = new java.io.File(outputPath);
+            System.out.println("[BlockListGenerator] Absolute path will be: " + outputFile.getAbsolutePath());
+            
+            // Create parent directories if they don't exist
+            java.io.File parentDir = outputFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                System.out.println("[BlockListGenerator] Creating directory: " + parentDir.getAbsolutePath());
+                parentDir.mkdirs();
+            }
+            
+            try (FileWriter writer = new FileWriter(outputFile)) {
                 writer.write("# Complete Block List\n\n");
                 writer.write("This is a complete list of all blocks available in Hytale, automatically generated from the game's asset system.\n\n");
                 writer.write("**Total Blocks:** " + blocks.size() + "\n\n");
@@ -84,13 +106,15 @@ public class BlockListGenerator {
                 writer.write("*Generated automatically using BlockHelper's dynamic asset system*\n");
             }
             
+            System.out.println("[BlockListGenerator] ✓ Successfully wrote " + blocks.size() + " blocks to " + outputPath);
             return blocks.size();
             
         } catch (IOException e) {
-            System.err.println("Error writing block list: " + e.getMessage());
+            System.err.println("[BlockListGenerator] ERROR writing file: " + e.getMessage());
+            e.printStackTrace();
             return -1;
         } catch (Exception e) {
-            System.err.println("Error generating block list: " + e.getMessage());
+            System.err.println("[BlockListGenerator] ERROR: " + e.getMessage());
             e.printStackTrace();
             return -1;
         }

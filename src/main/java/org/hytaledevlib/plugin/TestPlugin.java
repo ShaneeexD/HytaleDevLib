@@ -43,6 +43,17 @@ public class TestPlugin extends JavaPlugin {
                     // Register ECS event helpers (must be done after we have a world)
                     registerEcsEventTests(world);
                     
+                    // Generate block list for wiki
+                    LOGGER.at(Level.INFO).log("Generating block list for wiki...");
+                    String blockListPath = "wiki/BlockList.md";
+                    int blockCount = org.hytaledevlib.tools.BlockListGenerator.generateBlockList(blockListPath);
+                    LOGGER.at(Level.INFO).log("Block count returned: " + blockCount);
+                    if (blockCount > 0) {
+                        LOGGER.at(Level.INFO).log("✓ Generated block list with " + blockCount + " blocks at: " + blockListPath);
+                    } else {
+                        LOGGER.at(Level.WARNING).log("✗ Failed to generate block list (returned " + blockCount + ")");
+                    }
+                    
                     // Test all helpers: Wait 100 ticks for player to fully load
                     LOGGER.at(Level.INFO).log("Testing all helpers: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
