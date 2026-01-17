@@ -12,7 +12,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides eleven main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides twelve main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting
@@ -42,6 +42,13 @@ HytaleDevLib provides eleven main helper classes that simplify Hytale plugin dev
 - Player home/respawn position retrieval
 - Readable NPC type names (e.g., "Cow", "Minnow", "Skeleton_Fighter")
 - **NPC spawning** - Spawn any NPC by role name with proper ECS setup
+
+### ZoneHelper
+- **Zone discovery tracking** - Track which zones each player has discovered
+- **Current zone queries** - Get a player's current zone or check if they're in a specific zone
+- **Discovery management** - Mark zones as discovered, check discovery status
+- **Player-in-zone searches** - Find all players currently in a specific zone
+- **Zone statistics** - Get discovery counts, all discovered zones, and zone popularity
 
 ### BlockHelper
 - **Name-based block operations** - Minecraft-style block referencing
@@ -163,6 +170,16 @@ PlayerSkin skin = PlayerHelper.getPlayerSkin(player);
 if (skin != null) {
     WorldHelper.log(world, "Hair: " + skin.getHairStyle());
 }
+
+// Track zone discoveries
+ZoneHelper.initializeZoneTracking(world);
+if (ZoneHelper.isInZone(player, "Dangerous_Cave")) {
+    PlayerHelper.sendMessage(player, "⚠ Warning: This area is dangerous!");
+}
+
+// Check discovered zones
+int zoneCount = ZoneHelper.getDiscoveredZoneCount(player);
+PlayerHelper.sendMessage(player, "Zones discovered: " + zoneCount);
 
 // Run code every 5 seconds (100 ticks)
 WorldHelper.onTickInterval(world, 100, currentTick -> {

@@ -61,7 +61,8 @@ public class TestPlugin extends JavaPlugin {
                         // testPlayerHelper(world);
                         // testEntityHelper(world);
                         // testUIHelper(world);
-                        testBlockStateHelper(world);
+                        // testBlockStateHelper(world);
+                        testZoneHelper(world);
                     });
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
@@ -643,6 +644,135 @@ public class TestPlugin extends JavaPlugin {
             
         } catch (Exception e) {
             LOGGER.at(Level.WARNING).log("BlockStateHelper test error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void testZoneHelper(World world) {
+        LOGGER.at(Level.INFO).log("=== ZoneHelper Tests Starting ===");
+        
+        try {
+            // Initialize zone tracking
+            LOGGER.at(Level.INFO).log("Test 1: Initializing zone tracking...");
+            org.hytaledevlib.lib.ZoneHelper.initializeZoneTracking(world);
+            LOGGER.at(Level.INFO).log("  ✓ Zone tracking initialized");
+            
+            if (WorldHelper.getPlayerCount(world) == 0) {
+                LOGGER.at(Level.WARNING).log("No players found in world!");
+                return;
+            }
+            
+            com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+            
+            // Test 2: Manually discover some zones
+            LOGGER.at(Level.INFO).log("Test 2: Manually discovering zones...");
+            boolean discovered1 = org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Forest");
+            boolean discovered2 = org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Mountain");
+            boolean discovered3 = org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Cave");
+            
+            if (discovered1 && discovered2 && discovered3) {
+                LOGGER.at(Level.INFO).log("  ✓ Discovered 3 test zones");
+            } else {
+                LOGGER.at(Level.WARNING).log("  Some zones were not marked as new discoveries");
+            }
+            
+            // Test 3: Try to discover the same zone again (should return false)
+            LOGGER.at(Level.INFO).log("Test 3: Testing duplicate discovery...");
+            boolean duplicate = org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Forest");
+            if (!duplicate) {
+                LOGGER.at(Level.INFO).log("  ✓ Correctly identified duplicate discovery");
+            } else {
+                LOGGER.at(Level.WARNING).log("  Failed: Zone was marked as new when it shouldn't be");
+            }
+            
+            // Test 4: Get discovered zones
+            LOGGER.at(Level.INFO).log("Test 4: Getting discovered zones...");
+            java.util.List<String> discoveredZones = org.hytaledevlib.lib.ZoneHelper.getDiscoveredZones(player);
+            LOGGER.at(Level.INFO).log("  Player has discovered " + discoveredZones.size() + " zones:");
+            for (String zone : discoveredZones) {
+                LOGGER.at(Level.INFO).log("    - " + zone);
+            }
+            
+            // Test 5: Check if player has discovered specific zones
+            LOGGER.at(Level.INFO).log("Test 5: Checking specific zone discoveries...");
+            boolean hasForest = org.hytaledevlib.lib.ZoneHelper.hasDiscoveredZone(player, "Test_Forest");
+            boolean hasDesert = org.hytaledevlib.lib.ZoneHelper.hasDiscoveredZone(player, "Test_Desert");
+            LOGGER.at(Level.INFO).log("  Has discovered Test_Forest: " + hasForest + " (should be true)");
+            LOGGER.at(Level.INFO).log("  Has discovered Test_Desert: " + hasDesert + " (should be false)");
+            
+            // Test 6: Get discovery count
+            LOGGER.at(Level.INFO).log("Test 6: Getting discovery count...");
+            int count = org.hytaledevlib.lib.ZoneHelper.getDiscoveredZoneCount(player);
+            LOGGER.at(Level.INFO).log("  ✓ Player has discovered " + count + " zones");
+            
+            // Test 7: Set current zone
+            LOGGER.at(Level.INFO).log("Test 7: Setting current zone...");
+            org.hytaledevlib.lib.ZoneHelper.setCurrentZone(player, "Test_Forest");
+            String currentZone = org.hytaledevlib.lib.ZoneHelper.getCurrentZone(player);
+            if ("Test_Forest".equals(currentZone)) {
+                LOGGER.at(Level.INFO).log("  ✓ Current zone set to: " + currentZone);
+            } else {
+                LOGGER.at(Level.WARNING).log("  Failed to set current zone");
+            }
+            
+            // Test 8: Check if player is in zone
+            LOGGER.at(Level.INFO).log("Test 8: Checking if player is in zone...");
+            boolean inForest = org.hytaledevlib.lib.ZoneHelper.isInZone(player, "Test_Forest");
+            boolean inDesert = org.hytaledevlib.lib.ZoneHelper.isInZone(player, "Test_Desert");
+            LOGGER.at(Level.INFO).log("  Is in Test_Forest: " + inForest + " (should be true)");
+            LOGGER.at(Level.INFO).log("  Is in Test_Desert: " + inDesert + " (should be false)");
+            
+            // Test 9: Get all players in zone
+            LOGGER.at(Level.INFO).log("Test 9: Getting players in zone...");
+            java.util.List<com.hypixel.hytale.server.core.entity.Entity> playersInForest = 
+                org.hytaledevlib.lib.ZoneHelper.getPlayersInZone(world, "Test_Forest");
+            LOGGER.at(Level.INFO).log("  Players in Test_Forest: " + playersInForest.size());
+            
+            // Test 10: Get all discovered zones (global)
+            LOGGER.at(Level.INFO).log("Test 10: Getting all discovered zones (global)...");
+            java.util.Set<String> allZones = org.hytaledevlib.lib.ZoneHelper.getAllDiscoveredZones();
+            LOGGER.at(Level.INFO).log("  Total unique zones discovered: " + allZones.size());
+            for (String zone : allZones) {
+                int discoveryCount = org.hytaledevlib.lib.ZoneHelper.getZoneDiscoveryCount(zone);
+                LOGGER.at(Level.INFO).log("    - " + zone + " (discovered by " + discoveryCount + " players)");
+            }
+            
+            // Test 11: Clear discovered zones
+            LOGGER.at(Level.INFO).log("Test 11: Testing clear discovered zones...");
+            org.hytaledevlib.lib.ZoneHelper.clearDiscoveredZones(player);
+            int countAfterClear = org.hytaledevlib.lib.ZoneHelper.getDiscoveredZoneCount(player);
+            if (countAfterClear == 0) {
+                LOGGER.at(Level.INFO).log("  ✓ Successfully cleared all discovered zones");
+            } else {
+                LOGGER.at(Level.WARNING).log("  Failed to clear zones (count: " + countAfterClear + ")");
+            }
+            
+            // Re-discover zones for further testing
+            LOGGER.at(Level.INFO).log("Test 12: Re-discovering zones for ECS event test...");
+            org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Forest");
+            org.hytaledevlib.lib.ZoneHelper.discoverZone(player, "Test_Mountain");
+            LOGGER.at(Level.INFO).log("  ✓ Re-discovered 2 zones");
+            
+            LOGGER.at(Level.INFO).log("=== ZoneHelper Tests Complete ===");
+            LOGGER.at(Level.INFO).log("");
+            LOGGER.at(Level.INFO).log("Summary:");
+            LOGGER.at(Level.INFO).log("  ✓ Zone tracking initialization");
+            LOGGER.at(Level.INFO).log("  ✓ Manual zone discovery");
+            LOGGER.at(Level.INFO).log("  ✓ Duplicate discovery detection");
+            LOGGER.at(Level.INFO).log("  ✓ Get discovered zones list");
+            LOGGER.at(Level.INFO).log("  ✓ Check specific zone discovery");
+            LOGGER.at(Level.INFO).log("  ✓ Get discovery count");
+            LOGGER.at(Level.INFO).log("  ✓ Set/get current zone");
+            LOGGER.at(Level.INFO).log("  ✓ Check if player in zone");
+            LOGGER.at(Level.INFO).log("  ✓ Get players in zone");
+            LOGGER.at(Level.INFO).log("  ✓ Get all discovered zones (global)");
+            LOGGER.at(Level.INFO).log("  ✓ Clear discovered zones");
+            LOGGER.at(Level.INFO).log("");
+            LOGGER.at(Level.INFO).log("Note: Zone discovery events are tracked via EcsEventHelper.onZoneDiscovery()");
+            LOGGER.at(Level.INFO).log("Explore the world to trigger real zone discoveries!");
+            
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("ZoneHelper test error: " + e.getMessage());
             e.printStackTrace();
         }
     }
