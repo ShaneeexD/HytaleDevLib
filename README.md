@@ -111,7 +111,7 @@ HytaleDevLib provides 13 main helper classes that simplify Hytale plugin develop
 - **Helper methods** - `isAdded()`, `isRemoved()`, `isMoved()`, `isSet()`
 - **Event filtering** - Separate callbacks for add, remove, or all changes
 - **Chest protection** - Build protection systems and item logging
-- **64 container types** - Supports all chests, workbenches, and furnaces
+- **64 container types** - Supports all chests (workbenches and furnaces etc are WIP)
 - **Multi-container support** - Track multiple containers across worlds
 
 ### ComponentHelper
