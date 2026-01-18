@@ -817,14 +817,19 @@ public class TestPlugin extends JavaPlugin {
     private void registerEventTests() {
         LOGGER.at(Level.INFO).log("Registering EventHelper tests...");
         
+        // Test onPlayerJoinWorldWithUUID - Testing if this works
+        org.hytaledevlib.lib.EventHelper.onPlayerJoinWorldWithUUID(this, (world, uuid, username) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Player joined: " + username + " (UUID: " + uuid + ") in world: " + world.getName());
+        });
+        
         // Test onPlayerChat - WORKS
         org.hytaledevlib.lib.EventHelper.onPlayerChat(this, (username, message) -> {
             LOGGER.at(Level.INFO).log("[EventTest] Chat from " + username + ": " + message);
         });
         
         // Test onPlayerDisconnect - Testing if this works
-        org.hytaledevlib.lib.EventHelper.onPlayerDisconnect(this, (username) -> {
-            LOGGER.at(Level.INFO).log("[EventTest] Player disconnected: " + username);
+        org.hytaledevlib.lib.EventHelper.onPlayerDisconnect(this, (uuid, username) -> {
+            LOGGER.at(Level.INFO).log("[EventTest] Player disconnected: " + username + " (UUID: " + uuid + ")");
         });
         
         // Test onItemDrop - WORKS (with correct quantity)

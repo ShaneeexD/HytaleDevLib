@@ -26,17 +26,74 @@ public class EventHelper {
     /**
      * Register a callback for when a player joins a world.
      * 
+     * Note: This event fires when a player is being added to the world, but the player
+     * may not be in world.getPlayers() yet. Use the callback to get the world reference,
+     * then check for existing players or wait for them to be fully added.
+     * 
      * @param plugin Your plugin instance
      * @param callback Consumer that receives the world
      */
     public static void onPlayerJoinWorld(JavaPlugin plugin, Consumer<World> callback) {
         plugin.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
             try {
-                // TODO: Extract world from event
-                // Currently blocked by API access limitations
-                LOGGER.atInfo().log("Player joined world event triggered");
+                World world = event.getWorld();
+                callback.accept(world);
             } catch (Exception e) {
                 LOGGER.atWarning().log("Error in onPlayerJoinWorld: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Register a callback for when a player joins a world with access to the player's UUID and username.
+     * 
+     * This extracts the player UUID from the event's Holder component and retrieves the username
+     * using EntityHelper after a short delay to ensure the player is added to the world.
+     * 
+     * @param plugin Your plugin instance
+     * @param callback TriConsumer that receives the world, player UUID, and player username
+     */
+    public static void onPlayerJoinWorldWithUUID(JavaPlugin plugin, TriConsumer<World, java.util.UUID, String> callback) {
+        plugin.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
+            try {
+                World world = event.getWorld();
+                com.hypixel.hytale.component.Holder<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> holder = event.getHolder();
+                
+                // Get UUID from UUIDComponent
+                com.hypixel.hytale.server.core.entity.UUIDComponent uuidComp = holder.getComponent(
+                    com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType()
+                );
+                
+                if (uuidComp != null) {
+                    java.util.UUID uuid = uuidComp.getUuid();
+                    
+                    // Wait a tick for player to be fully added to world, then get username
+                    WorldHelper.waitTicks(world, 50, () -> {
+                        com.hypixel.hytale.server.core.entity.Entity player = EntityHelper.getPlayerByUUID(world, uuid);
+                        String username = player != null ? EntityHelper.getName(player) : "Unknown";
+                        callback.accept(world, uuid, username);
+                    });
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Error in onPlayerJoinWorldWithUUID: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Register a callback for when a player disconnects from the server.
+     * 
+     * @param plugin Your plugin instance
+     * @param callback BiConsumer that receives the player's UUID and username
+     */
+    public static void onPlayerDisconnect(JavaPlugin plugin, BiConsumer<java.util.UUID, String> callback) {
+        plugin.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, (event) -> {
+            try {
+                java.util.UUID uuid = event.getPlayerRef().getUuid();
+                String username = event.getPlayerRef().getUsername();
+                callback.accept(uuid, username);
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Error in onPlayerDisconnect: " + e.getMessage());
             }
         });
     }
@@ -161,18 +218,18 @@ public class EventHelper {
     }
     
     /**
-     * Register a callback for when a player disconnects from the server.
+     * Register a callback for when a player disconnects from the server (by username).
      * 
      * @param plugin Your plugin instance
      * @param callback Consumer that receives the player's username
      */
-    public static void onPlayerDisconnect(JavaPlugin plugin, Consumer<String> callback) {
+    public static void onPlayerDisconnectByName(JavaPlugin plugin, Consumer<String> callback) {
         plugin.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, (event) -> {
             try {
                 String username = event.getPlayerRef().getUsername();
                 callback.accept(username);
             } catch (Exception e) {
-                LOGGER.atWarning().log("Error in onPlayerDisconnect: " + e.getMessage());
+                LOGGER.atWarning().log("Error in onPlayerDisconnectByName: " + e.getMessage());
             }
         });
     }
