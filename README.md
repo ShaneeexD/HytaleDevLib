@@ -102,6 +102,14 @@ HytaleDevLib provides 13 main helper classes that simplify Hytale plugin develop
 - **Conditional drops** - Support for position-based, random, or custom logic
 - **Velocity control** - Random or custom velocities for realistic drop patterns
 
+### ContainerHelper
+- **Container change tracking** - Monitor when items are added/removed from containers
+- **Position-based registration** - Track specific chests, furnaces, and storage blocks
+- **Event filtering** - Separate callbacks for add, remove, or all changes
+- **Chest protection** - Build protection systems and item logging
+- **Transaction details** - Full access to item IDs, quantities, and slot information
+- **Multi-container support** - Track multiple containers across worlds
+
 ### ComponentHelper
 - Type-safe ECS component operations
 - Display name management

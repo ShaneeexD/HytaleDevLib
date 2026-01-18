@@ -46,6 +46,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register LootHelper test
                     registerLootHelperTest(world);
                     
+                    // Register ContainerHelper test (uses existing ECS events)
+                    registerContainerHelperTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -873,9 +876,30 @@ public class TestPlugin extends JavaPlugin {
             LOGGER.at(Level.INFO).log("[EcsEventTest] Block broken at " + position + " - Type: " + blockTypeId);
         });
         
-        // Test onBlockPlace - ECS event
+        // Test onBlockPlace - ECS event (also handles container auto-registration)
         org.hytaledevlib.lib.EcsEventHelper.onBlockPlace(world, (position, itemId) -> {
             LOGGER.at(Level.INFO).log("[EcsEventTest] Block placed at " + position + " - Item: " + itemId);
+            
+            // Check if this is a container block and auto-register it
+            if (org.hytaledevlib.lib.ContainerHelper.isContainerType(itemId)) {
+                LOGGER.at(Level.INFO).log("🔍 Container block placed detected: " + itemId + " at " + position);
+                LOGGER.at(Level.INFO).log("   Waiting 2 ticks for block state to initialize...");
+                
+                // Wait for block state to be created
+                WorldHelper.waitTicks(world, 2, () -> {
+                    // Register the container with the callback defined in registerContainerHelperTest
+                    boolean success = registerContainerAtPosition(world, position, itemId);
+                    if (success) {
+                        LOGGER.at(Level.INFO).log("✅ Successfully auto-registered container at " + position);
+                        LOGGER.at(Level.INFO).log("   Type: " + itemId);
+                        LOGGER.at(Level.INFO).log("   Total tracked: " + org.hytaledevlib.lib.ContainerHelper.getTrackedContainerCount(world));
+                    } else {
+                        LOGGER.at(Level.WARNING).log("❌ Failed to auto-register container at " + position);
+                        LOGGER.at(Level.WARNING).log("   Type: " + itemId);
+                        LOGGER.at(Level.WARNING).log("   Reason: No ItemContainerState found at position");
+                    }
+                });
+            }
         });
         
         // Test onBlockDamage - ECS event (mining progress)
@@ -920,5 +944,86 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("LootHelper test registered!");
         LOGGER.at(Level.INFO).log("  ✓ Rock_Stone now drops Weapon_Sword_Iron");
         LOGGER.at(Level.INFO).log("  ✓ Break a stone block to test!");
+    }
+    
+    // Store the container callback for use in registerContainerAtPosition
+    private java.util.function.BiConsumer<com.hypixel.hytale.server.core.inventory.container.ItemContainer, 
+                                          com.hypixel.hytale.server.core.inventory.container.ItemContainer.ItemContainerChangeEvent> containerCallback;
+    
+    /**
+     * Register a container at a specific position with the test callback.
+     */
+    private boolean registerContainerAtPosition(World world, com.hypixel.hytale.math.vector.Vector3i position, String itemId) {
+        if (containerCallback != null) {
+            return org.hytaledevlib.lib.ContainerHelper.onContainerChange(world, position, containerCallback);
+        }
+        return false;
+    }
+    
+    /**
+     * Register ContainerHelper test - sets up container tracking callback.
+     */
+    private void registerContainerHelperTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering ContainerHelper test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Define the container callback (will be used by registerContainerAtPosition)
+        this.containerCallback = (container, event) -> {
+            String transaction = event.transaction().toString();
+            
+            LOGGER.at(Level.INFO).log("");
+            LOGGER.at(Level.INFO).log("╔════════════════════════════════════════╗");
+            LOGGER.at(Level.INFO).log("║   CONTAINER TRANSACTION DETECTED       ║");
+            LOGGER.at(Level.INFO).log("╚════════════════════════════════════════╝");
+            
+            // Log transaction type
+            if (transaction.contains("action=ADD")) {
+                LOGGER.at(Level.INFO).log("  📥 Type: ITEM ADDED TO CONTAINER");
+            } else if (transaction.contains("action=REMOVE")) {
+                LOGGER.at(Level.INFO).log("  📤 Type: ITEM REMOVED FROM CONTAINER");
+            } else if (transaction.contains("action=MOVE")) {
+                LOGGER.at(Level.INFO).log("  🔄 Type: ITEM MOVED IN CONTAINER");
+            } else if (transaction.contains("action=REPLACE")) {
+                LOGGER.at(Level.INFO).log("  🔁 Type: ITEM REPLACED IN CONTAINER");
+            } else if (transaction.contains("action=CLEAR")) {
+                LOGGER.at(Level.INFO).log("  🗑️ Type: CONTAINER CLEARED");
+            } else {
+                LOGGER.at(Level.INFO).log("  ❓ Type: OTHER (" + transaction.substring(0, Math.min(50, transaction.length())) + "...)");
+            }
+            
+            // Log container info
+            LOGGER.at(Level.INFO).log("  📦 Container capacity: " + container.getCapacity() + " slots");
+            
+            // Log tracking stats
+            int trackedCount = org.hytaledevlib.lib.ContainerHelper.getTrackedContainerCount(world);
+            LOGGER.at(Level.INFO).log("  📊 Currently tracking: " + trackedCount + " container(s)");
+            
+            // Log full transaction details (truncated if too long)
+            LOGGER.at(Level.INFO).log("  📋 Full transaction:");
+            if (transaction.length() > 200) {
+                LOGGER.at(Level.INFO).log("     " + transaction.substring(0, 200) + "...");
+                LOGGER.at(Level.INFO).log("     (truncated - " + transaction.length() + " chars total)");
+            } else {
+                LOGGER.at(Level.INFO).log("     " + transaction);
+            }
+            
+            LOGGER.at(Level.INFO).log("════════════════════════════════════════");
+            LOGGER.at(Level.INFO).log("");
+        };
+        
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("✅ ContainerHelper test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Auto-tracking enabled for ALL containers");
+        LOGGER.at(Level.INFO).log("  ✓ Tracking 64 container types:");
+        LOGGER.at(Level.INFO).log("    - 18 workbenches (Alchemy, Furnace, etc.)");
+        LOGGER.at(Level.INFO).log("    - 46 chests (all variants)");
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("📝 To test:");
+        LOGGER.at(Level.INFO).log("  1. Place a chest or workbench");
+        LOGGER.at(Level.INFO).log("  2. Open it and add/remove items");
+        LOGGER.at(Level.INFO).log("  3. Watch for CONTAINER TRANSACTION logs");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
     }
 }
