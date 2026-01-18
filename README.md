@@ -12,7 +12,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides twelve main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides 13 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting
