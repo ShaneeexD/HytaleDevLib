@@ -114,6 +114,11 @@ HytaleDevLib provides 13 main helper classes that simplify Hytale plugin develop
 - **64 container types** - Supports all chests (workbenches and furnaces etc are WIP)
 - **Multi-container support** - Track multiple containers across worlds
 
+### EquipmentHelper
+- Track equipment changes for any `LivingEntity`
+- Armor, utility/offhand, and tools container tracking
+- Provides `EquipmentChange` with old/new items, slot info, and helpers (`isEquipping()`, `isUnequipping()`)
+
 ### ComponentHelper
 - Type-safe ECS component operations
 - Display name management

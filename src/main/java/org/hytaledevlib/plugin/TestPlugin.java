@@ -49,6 +49,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register ContainerHelper test (uses existing ECS events)
                     registerContainerHelperTest(world);
                     
+                    // Register EquipmentHelper test
+                    registerEquipmentHelperTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -826,6 +829,52 @@ public class TestPlugin extends JavaPlugin {
         // Test onPlayerJoinWorldWithUUID - Testing if this works
         org.hytaledevlib.lib.EventHelper.onPlayerJoinWorldWithUUID(this, (world, uuid, username) -> {
             LOGGER.at(Level.INFO).log("[EventTest] Player joined: " + username + " (UUID: " + uuid + ") in world: " + world.getName());
+            
+            // Register equipment tracking for this player
+            for (com.hypixel.hytale.server.core.entity.Entity entity : world.getPlayers()) {
+                if (entity instanceof com.hypixel.hytale.server.core.entity.LivingEntity livingEntity) {
+                    if (org.hytaledevlib.lib.EntityHelper.getUUID(entity).equals(uuid)) {
+                        LOGGER.at(Level.INFO).log("Registering equipment tracking for player: " + username);
+                        
+                        org.hytaledevlib.lib.EquipmentHelper.onEquipmentChange(world, livingEntity, (change, container) -> {
+                            String slotType = change.getSlotType().toString();
+                            String action = change.isEquipping() ? "EQUIPPED" : "UNEQUIPPED";
+                            
+                            LOGGER.at(Level.INFO).log("EQUIPMENT CHANGE DETECTED");
+                            LOGGER.at(Level.INFO).log("Slot Type: " + slotType);
+                            LOGGER.at(Level.INFO).log("Slot Index: " + change.getSlotIndex());
+                            LOGGER.at(Level.INFO).log("Action: " + action);
+                            
+                            // Show armor slot name if it's armor
+                            if (change.getSlotType() == org.hytaledevlib.lib.EquipmentHelper.EquipmentSlotType.ARMOR) {
+                                com.hypixel.hytale.protocol.ItemArmorSlot armorSlot = change.getArmorSlot();
+                                if (armorSlot != null) {
+                                    LOGGER.at(Level.INFO).log("Armor Slot: " + armorSlot.name() + " (Head/Chest/Hands/Legs)");
+                                }
+                            }
+                            
+                            // Show old item
+                            if (change.getOldItemId() != null) {
+                                LOGGER.at(Level.INFO).log("Old Item: " + change.getOldItemId());
+                                LOGGER.at(Level.INFO).log("Old Quantity: " + change.getOldQuantity());
+                            } else {
+                                LOGGER.at(Level.INFO).log("Old Item: (empty)");
+                            }
+                            
+                            // Show new item
+                            if (change.getNewItemId() != null) {
+                                LOGGER.at(Level.INFO).log("New Item: " + change.getNewItemId());
+                                LOGGER.at(Level.INFO).log("New Quantity: " + change.getNewQuantity());
+                            } else {
+                                LOGGER.at(Level.INFO).log("New Item: (empty)");
+                            }
+                            
+                            LOGGER.at(Level.INFO).log("---");
+                        });
+                        break;
+                    }
+                }
+            }
         });
         
         // Test onPlayerChat - WORKS
@@ -1002,6 +1051,78 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  2. Add/remove items using normal clicks or shift-click");
         LOGGER.at(Level.INFO).log("  3. Watch for CONTAINER TRANSACTION logs");
         LOGGER.at(Level.INFO).log("  4. Works with existing containers from previous worlds!");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Register EquipmentHelper test - tracks player armor and equipment changes.
+     */
+    private void registerEquipmentHelperTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering EquipmentHelper test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Register equipment tracking when players join
+        org.hytaledevlib.lib.EventHelper.onPlayerJoinWorld(this, joinedWorld -> {
+            // Get the player who just joined
+            for (com.hypixel.hytale.server.core.entity.Entity entity : joinedWorld.getPlayers()) {
+                if (entity instanceof com.hypixel.hytale.server.core.entity.LivingEntity livingEntity) {
+                    LOGGER.at(Level.INFO).log("Registering equipment tracking for player: " + org.hytaledevlib.lib.EntityHelper.getName(entity));
+                    
+                    org.hytaledevlib.lib.EquipmentHelper.onEquipmentChange(joinedWorld, livingEntity, (change, container) -> {
+                        String slotType = change.getSlotType().toString();
+                        String action = change.isEquipping() ? "EQUIPPED" : "UNEQUIPPED";
+                        
+                        LOGGER.at(Level.INFO).log("EQUIPMENT CHANGE DETECTED");
+                        LOGGER.at(Level.INFO).log("Slot Type: " + slotType);
+                        LOGGER.at(Level.INFO).log("Slot Index: " + change.getSlotIndex());
+                        LOGGER.at(Level.INFO).log("Action: " + action);
+                        
+                        // Show armor slot name if it's armor
+                        if (change.getSlotType() == org.hytaledevlib.lib.EquipmentHelper.EquipmentSlotType.ARMOR) {
+                            com.hypixel.hytale.protocol.ItemArmorSlot armorSlot = change.getArmorSlot();
+                            if (armorSlot != null) {
+                                LOGGER.at(Level.INFO).log("Armor Slot: " + armorSlot.name() + " (Head/Chest/Hands/Legs)");
+                            }
+                        }
+                        
+                        // Show old item
+                        if (change.getOldItemId() != null) {
+                            LOGGER.at(Level.INFO).log("Old Item: " + change.getOldItemId());
+                            LOGGER.at(Level.INFO).log("Old Quantity: " + change.getOldQuantity());
+                        } else {
+                            LOGGER.at(Level.INFO).log("Old Item: (empty)");
+                        }
+                        
+                        // Show new item
+                        if (change.getNewItemId() != null) {
+                            LOGGER.at(Level.INFO).log("New Item: " + change.getNewItemId());
+                            LOGGER.at(Level.INFO).log("New Quantity: " + change.getNewQuantity());
+                        } else {
+                            LOGGER.at(Level.INFO).log("New Item: (empty)");
+                        }
+                        
+                        LOGGER.at(Level.INFO).log("---");
+                    });
+                }
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("✅ EquipmentHelper test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Will track equipment for players when they join");
+        LOGGER.at(Level.INFO).log("  ✓ Monitoring:");
+        LOGGER.at(Level.INFO).log("    - Armor slots (Head, Chest, Hands, Legs)");
+        LOGGER.at(Level.INFO).log("    - Utility slots (offhand/tools)");
+        LOGGER.at(Level.INFO).log("    - Tool slots");
+        LOGGER.at(Level.INFO).log("    - Hotbar and storage");
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("📝 To test:");
+        LOGGER.at(Level.INFO).log("  1. Equip or unequip armor pieces");
+        LOGGER.at(Level.INFO).log("  2. Change items in your offhand/utility slots");
+        LOGGER.at(Level.INFO).log("  3. Switch tools");
+        LOGGER.at(Level.INFO).log("  4. Watch for EQUIPMENT CHANGE logs");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
     }

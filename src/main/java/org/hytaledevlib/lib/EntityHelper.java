@@ -692,4 +692,33 @@ public class EntityHelper {
     public static Entity spawnNPC(World world, String roleName, double x, double y, double z, Float yaw) {
         return spawnNPC(world, roleName, new Vector3d(x, y, z), yaw);
     }
+    
+    /**
+     * Get the UUID of an entity.
+     * Uses the deprecated getUuid() method as it's currently the only available method.
+     * 
+     * @param entity The entity
+     * @return The entity's UUID, or null if entity is null
+     */
+    public static UUID getUUID(Entity entity) {
+        return entity != null ? entity.getUuid() : null;
+    }
+    
+    /**
+     * Get all entities in a world.
+     * Uses the deprecated getPlayers() method for now.
+     * 
+     * @param world The world
+     * @return List of all entities (currently only players)
+     */
+    public static List<Entity> getEntities(World world) {
+        List<Entity> entities = new ArrayList<>();
+        if (world != null) {
+            // Currently only returns players as there's no getEntities() method
+            for (Entity player : world.getPlayers()) {
+                entities.add(player);
+            }
+        }
+        return entities;
+    }
 }
