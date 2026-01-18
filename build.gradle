@@ -18,9 +18,10 @@ javadoc {
     options.addStringOption('Xdoclint:-missing', '-quiet')
 }
 
-// Exclude test plugin and tools from the JAR for public release
+// Exclude tools from the JAR for public release (but keep plugin for loading)
 jar {
-    exclude 'org/hytaledevlib/plugin/**'
+    exclude 'org/hytaledevlib/plugin/TestPlugin.class'
+    exclude 'org/hytaledevlib/plugin/TestPlugin$*.class'
     exclude 'org/hytaledevlib/tools/**'
 }
 
