@@ -94,98 +94,19 @@ HytaleDevLib provides twelve main helper classes that simplify Hytale plugin dev
 - **UI animations** - Fade in/out effects for smooth transitions
 - Page manager and HUD manager access
 
+### LootHelper
+- **Custom block drops** - Override default block drops with custom items
+- **Loot tables** - Register custom loot for specific block types
+- **Physical item entities** - Spawn items with proper physics and collision
+- **Replacement or additive** - Replace default drops entirely or add bonus drops
+- **Conditional drops** - Support for position-based, random, or custom logic
+- **Velocity control** - Random or custom velocities for realistic drop patterns
+
 ### ComponentHelper
 - Type-safe ECS component operations
 - Display name management
 - Item data extraction
 - Graceful null handling
-
-## Quick Start Examples
-
-```java
-// Spawn NPCs by name
-Entity cow = EntityHelper.spawnNPC(world, "Cow", new Vector3d(100, 64, 100));
-Entity deer = EntityHelper.spawnNPC(world, "Deer_Doe", 105, 64, 100);
-
-// Set blocks by name (Minecraft-style)
-BlockHelper.setBlockByName(world, x, y, z, "Rock_Stone");
-BlockHelper.fillRegionByName(world, corner1, corner2, "Soil_Grass");
-
-// Check time and spawn mobs at night
-if (WorldHelper.isNighttime(world)) {
-    EntityHelper.spawnNPC(world, "Skeleton_Fighter", x, y, z);
-}
-
-// Get time information
-int hour = WorldHelper.getCurrentHour(world);  // 0-23
-float dayProgress = WorldHelper.getDayProgress(world);  // 0.0-1.0
-int moonPhase = WorldHelper.getMoonPhase(world);  // 0-7
-
-// Set time of day
-WorldHelper.setDayTime(world, 0.5);  // Set to noon
-
-// Detect when players drop items
-EventHelper.onItemDrop(this, (itemId, quantity) -> {
-    WorldHelper.log(world, "Dropped: " + itemId + " x" + quantity);
-});
-
-// Detect crafting (NEW in v0.1.4)
-EventHelper.onCraftRecipe(this, (itemId, quantity) -> {
-    WorldHelper.log(world, "Crafted: " + quantity + "x " + itemId);
-});
-
-// Track zone discoveries (NEW in v0.1.4)
-EcsEventHelper.onZoneDiscovery(world, (discoveryInfo) -> {
-    WorldHelper.log(world, "Discovered: " + discoveryInfo.zoneName());
-});
-
-// Give items to players (NEW in v0.1.4)
-InventoryHelper.giveItem(player, "Gem_Diamond", 5);
-
-// Check player permissions (NEW in v0.1.4)
-if (PlayerHelper.hasPermission(player, "admin.commands")) {
-    PlayerHelper.sendMessage(player, "You have admin access!");
-}
-
-// Create a loot chest with random item placement
-BlockHelper.setBlockByName(world, x, y, z, "Furniture_Desert_Chest_Small");
-WorldHelper.waitTicks(world, 2, () -> {
-    BlockState state = BlockStateHelper.ensureState(world, x, y, z);
-    if (state instanceof ItemContainerState chestState) {
-        ItemContainer container = chestState.getItemContainer();
-        ItemHelper.fillContainerRandom(container,
-            "Furniture_Crude_Torch", 2,
-            "Ingredient_Bone_Fragment", 10,
-            "Item_Diamond", 5
-        );
-        BlockStateHelper.markNeedsSave(chestState);
-    }
-});
-
-// Fade out a custom UI page
-UIHelper.fadeOutCustomPage(player, "myPage", 1000);
-
-// Get player appearance data
-PlayerSkin skin = PlayerHelper.getPlayerSkin(player);
-if (skin != null) {
-    WorldHelper.log(world, "Hair: " + skin.getHairStyle());
-}
-
-// Track zone discoveries
-ZoneHelper.initializeZoneTracking(world);
-if (ZoneHelper.isInZone(player, "Dangerous_Cave")) {
-    PlayerHelper.sendMessage(player, "⚠ Warning: This area is dangerous!");
-}
-
-// Check discovered zones
-int zoneCount = ZoneHelper.getDiscoveredZoneCount(player);
-PlayerHelper.sendMessage(player, "Zones discovered: " + zoneCount);
-
-// Run code every 5 seconds (100 ticks)
-WorldHelper.onTickInterval(world, 100, currentTick -> {
-    WorldHelper.log(world, "Periodic task executed!");
-});
-```
 
 ## Installation
 

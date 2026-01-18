@@ -43,6 +43,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register ECS event helpers (must be done after we have a world)
                     registerEcsEventTests(world);
                     
+                    // Register LootHelper test
+                    registerLootHelperTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -899,5 +902,23 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  ✓ Block placing");
         LOGGER.at(Level.INFO).log("  ✓ Block damage (mining progress tracking)");
         LOGGER.at(Level.INFO).log("  ✓ Zone discovery (map exploration)");
+    }
+    
+    /**
+     * Register LootHelper test - makes Rock_Stone drop iron swords.
+     */
+    private void registerLootHelperTest(World world) {
+        LOGGER.at(Level.INFO).log("Registering LootHelper test...");
+        
+        // Make stone blocks drop iron swords instead of stone
+        org.hytaledevlib.lib.LootHelper.registerBlockLootReplacement(world, "Rock_Stone", (pos, blockType) -> {
+            return java.util.Arrays.asList(
+                new org.hytaledevlib.lib.LootHelper.ItemDrop("Weapon_Sword_Iron", 1)
+            );
+        });
+        
+        LOGGER.at(Level.INFO).log("LootHelper test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Rock_Stone now drops Weapon_Sword_Iron");
+        LOGGER.at(Level.INFO).log("  ✓ Break a stone block to test!");
     }
 }
