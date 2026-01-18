@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.world.meta.state.ItemContainerSta
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * ContainerHelper - Utilities for tracking item container changes.
@@ -32,6 +33,33 @@ public class ContainerHelper {
     
     // Track which worlds have auto-registration enabled
     private static final Map<String, Boolean> autoRegistrationEnabled = new ConcurrentHashMap<>();
+    
+    /**
+     * Parsed container transaction details.
+     */
+    public static class ContainerTransaction {
+        private final String action;
+        private final String itemId;
+        private final int quantity;
+        private final String rawTransaction;
+        
+        public ContainerTransaction(String action, String itemId, int quantity, String rawTransaction) {
+            this.action = action;
+            this.itemId = itemId;
+            this.quantity = quantity;
+            this.rawTransaction = rawTransaction;
+        }
+        
+        public String getAction() { return action; }
+        public String getItemId() { return itemId; }
+        public int getQuantity() { return quantity; }
+        public String getRawTransaction() { return rawTransaction; }
+        
+        public boolean isAdded() { return "ADDED".equals(action); }
+        public boolean isRemoved() { return "REMOVED".equals(action); }
+        public boolean isMoved() { return "MOVED".equals(action); }
+        public boolean isSet() { return "SET".equals(action); }
+    }
     
     // List of container block types to auto-track
     private static final java.util.Set<String> CONTAINER_BLOCK_TYPES = new java.util.HashSet<>(java.util.Arrays.asList(
@@ -104,15 +132,21 @@ public class ContainerHelper {
     
     /**
      * Enable automatic container tracking for a world.
-     * This will automatically register listeners on all containers as they are placed,
-     * and unregister them when destroyed.
+     * 
+     * Automatically registers listeners on containers as they are placed by players,
+     * and unregisters them when destroyed.
      * 
      * @param world The world to enable auto-tracking for
-     * @param callback The callback to invoke for all container changes
+     * @param callback Consumer that receives parsed ContainerTransaction for all container changes
      */
-    public static void enableAutoTracking(World world, BiConsumer<ItemContainer, ItemContainer.ItemContainerChangeEvent> callback) {
+    public static void enableAutoTracking(World world, Consumer<ContainerTransaction> callback) {
         String worldName = world.getName();
-        globalCallbacks.put(worldName, callback);
+        // Store as raw callback internally
+        BiConsumer<ItemContainer, ItemContainer.ItemContainerChangeEvent> rawCallback = (container, event) -> {
+            ContainerTransaction transaction = parseTransaction(event);
+            callback.accept(transaction);
+        };
+        globalCallbacks.put(worldName, rawCallback);
         autoRegistrationEnabled.put(worldName, true);
         
         // Register block placement listener
@@ -154,9 +188,9 @@ public class ContainerHelper {
      * @param world The world to enable auto-tracking for
      * @param callback Consumer that receives transaction string
      */
-    public static void enableAutoTrackingSimple(World world, java.util.function.Consumer<String> callback) {
-        enableAutoTracking(world, (container, event) -> {
-            callback.accept(event.transaction().toString());
+    public static void enableAutoTrackingSimple(World world, Consumer<String> callback) {
+        enableAutoTracking(world, (transaction) -> {
+            callback.accept(transaction.getRawTransaction());
         });
     }
     
@@ -193,27 +227,156 @@ public class ContainerHelper {
     }
     
     /**
+     * Parse a transaction event into a ContainerTransaction object.
+     * Handles MoveTransaction to correctly detect if items were added or removed from THIS container.
+     * 
+     * @param event The ItemContainerChangeEvent to parse
+     * @return Parsed ContainerTransaction with action, itemId, and quantity
+     */
+    public static ContainerTransaction parseTransaction(ItemContainer.ItemContainerChangeEvent event) {
+        String transaction = event.transaction().toString();
+        return parseTransactionString(transaction);
+    }
+    
+    /**
+     * Parse a transaction string into a ContainerTransaction object.
+     * 
+     * @param transaction The transaction string to parse
+     * @return Parsed ContainerTransaction with action, itemId, and quantity
+     */
+    private static ContainerTransaction parseTransactionString(String transaction) {
+        String itemId = null;
+        int quantity = 0;
+        String action = "UNKNOWN";
+        
+        // For MoveTransaction, we need to determine if items were added or removed from THIS container
+        if (transaction.startsWith("MoveTransaction{")) {
+            // Check moveType to determine direction
+            // moveType=MOVE_FROM_SELF means items are leaving this container (REMOVED)
+            // moveType=MOVE_TO_SELF means items are entering this container (ADDED)
+            if (transaction.contains("moveType=MOVE_FROM_SELF")) {
+                action = "REMOVED";
+            } else if (transaction.contains("moveType=MOVE_TO_SELF")) {
+                action = "ADDED";
+            } else {
+                // Fallback: check removeTransaction for action=REMOVE
+                int removeTransStart = transaction.indexOf("removeTransaction=");
+                if (removeTransStart != -1) {
+                    int removeTransEnd = transaction.indexOf("moveType=", removeTransStart);
+                    if (removeTransEnd != -1) {
+                        String removeSection = transaction.substring(removeTransStart, removeTransEnd);
+                        if (removeSection.contains("action=REMOVE")) {
+                            action = "REMOVED";
+                        }
+                    }
+                }
+                
+                // If still unknown, check addTransaction
+                if (action.equals("UNKNOWN")) {
+                    int addTransStart = transaction.indexOf("addTransaction=");
+                    if (addTransStart != -1) {
+                        String addSection = transaction.substring(addTransStart);
+                        if (addSection.contains("action=ADD") || addSection.contains("action=SET")) {
+                            action = "ADDED";
+                        }
+                    }
+                }
+            }
+        } else {
+            // For non-MoveTransaction, use simple action detection
+            if (transaction.contains("action=ADD")) {
+                action = "ADDED";
+            } else if (transaction.contains("action=REMOVE")) {
+                action = "REMOVED";
+            } else if (transaction.contains("action=SET")) {
+                action = "SET";
+            } else if (transaction.contains("action=REPLACE")) {
+                action = "REPLACED";
+            } else if (transaction.contains("action=CLEAR")) {
+                action = "CLEARED";
+            }
+        }
+        
+        // Parse itemId and quantity from transaction string
+        int itemIdStart = transaction.indexOf("itemId=");
+        if (itemIdStart != -1) {
+            int itemIdEnd = transaction.indexOf(",", itemIdStart);
+            if (itemIdEnd != -1) {
+                itemId = transaction.substring(itemIdStart + 7, itemIdEnd);
+            }
+            
+            // Find quantity after itemId
+            int quantityStart = transaction.indexOf("quantity=", itemIdStart);
+            if (quantityStart != -1) {
+                int quantityEnd = transaction.indexOf(",", quantityStart);
+                if (quantityEnd != -1) {
+                    try {
+                        quantity = Integer.parseInt(transaction.substring(quantityStart + 9, quantityEnd));
+                    } catch (NumberFormatException e) {
+                        quantity = 0;
+                    }
+                }
+            }
+        }
+        
+        return new ContainerTransaction(action, itemId, quantity, transaction);
+    }
+    
+    /**
      * Check if a block type is a known container type.
+     * Handles block state variations like _State_Definitions_OpenWindow and _State_Definitions_CloseWindow.
+     * Also strips leading asterisks (*) from block type IDs.
      * 
      * @param blockTypeId The block type ID to check
      * @return true if this is a container type
      */
     public static boolean isContainerType(String blockTypeId) {
-        return CONTAINER_BLOCK_TYPES.contains(blockTypeId);
+        // Strip leading asterisks (*, **) from the block type ID
+        String cleanBlockTypeId = blockTypeId.replaceFirst("^\\*+", "");
+        
+        // First check exact match
+        if (CONTAINER_BLOCK_TYPES.contains(cleanBlockTypeId)) {
+            return true;
+        }
+        
+        // Check if the cleanBlockTypeId starts with any known container type
+        // This handles state variations like "Furniture_Crude_Chest_Small_State_Definitions_OpenWindow"
+        for (String containerType : CONTAINER_BLOCK_TYPES) {
+            if (cleanBlockTypeId.startsWith(containerType)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
      * Register a callback for when items change in a container at a specific position.
-     * 
-     * This will get the container from the block state at the given position and register
-     * a listener for all item changes (add, remove, move, etc.).
+     * Callback receives parsed ContainerTransaction with action, itemId, and quantity.
      * 
      * @param world The world containing the container
      * @param position The block position of the container
-     * @param callback BiConsumer that receives the container and transaction details
+     * @param callback Consumer that receives parsed ContainerTransaction
      * @return true if successfully registered, false if no container exists at position
      */
     public static boolean onContainerChange(World world, Vector3i position, 
+                                           Consumer<ContainerTransaction> callback) {
+        return onContainerChangeRaw(world, position, (container, event) -> {
+            ContainerTransaction transaction = parseTransaction(event);
+            callback.accept(transaction);
+        });
+    }
+    
+    /**
+     * Register a callback for when items change in a container at a specific position.
+     * Callback receives raw container and event objects.
+     * 
+     * @param world The world containing the container
+     * @param position The block position of the container
+     * @param callback BiConsumer that receives the container and event
+     * @return true if successfully registered, false if no container exists at position
+     */
+    public static boolean onContainerChangeRaw(World world, Vector3i position, 
                                            BiConsumer<ItemContainer, ItemContainer.ItemContainerChangeEvent> callback) {
         try {
             // Get the block state at this position
@@ -249,16 +412,16 @@ public class ContainerHelper {
     }
     
     /**
-     * Register a simplified callback that only receives transaction details.
+     * Register a simplified callback that only receives transaction string.
      * 
      * @param world The world containing the container
      * @param position The block position of the container
-     * @param callback Consumer that receives transaction string for parsing
+     * @param callback Consumer that receives transaction string
      * @return true if successfully registered, false if no container exists at position
      */
     public static boolean onContainerChangeSimple(World world, Vector3i position, 
-                                                  java.util.function.Consumer<String> callback) {
-        return onContainerChange(world, position, (container, event) -> {
+                                                  Consumer<String> callback) {
+        return onContainerChangeRaw(world, position, (container, event) -> {
             String transactionStr = event.transaction().toString();
             callback.accept(transactionStr);
         });
@@ -269,15 +432,14 @@ public class ContainerHelper {
      * 
      * @param world The world containing the container
      * @param position The block position of the container
-     * @param callback Consumer that receives the transaction details
+     * @param callback Consumer that receives parsed ContainerTransaction
      * @return true if successfully registered, false if no container exists at position
      */
     public static boolean onContainerItemAdd(World world, Vector3i position, 
-                                            java.util.function.Consumer<String> callback) {
-        return onContainerChange(world, position, (container, event) -> {
-            String transactionStr = event.transaction().toString();
-            if (transactionStr.contains("action=ADD")) {
-                callback.accept(transactionStr);
+                                            Consumer<ContainerTransaction> callback) {
+        return onContainerChange(world, position, (transaction) -> {
+            if (transaction.isAdded()) {
+                callback.accept(transaction);
             }
         });
     }
@@ -287,15 +449,14 @@ public class ContainerHelper {
      * 
      * @param world The world containing the container
      * @param position The block position of the container
-     * @param callback Consumer that receives the transaction details
+     * @param callback Consumer that receives parsed ContainerTransaction
      * @return true if successfully registered, false if no container exists at position
      */
     public static boolean onContainerItemRemove(World world, Vector3i position, 
-                                               java.util.function.Consumer<String> callback) {
-        return onContainerChange(world, position, (container, event) -> {
-            String transactionStr = event.transaction().toString();
-            if (transactionStr.contains("action=REMOVE")) {
-                callback.accept(transactionStr);
+                                               Consumer<ContainerTransaction> callback) {
+        return onContainerChange(world, position, (transaction) -> {
+            if (transaction.isRemoved()) {
+                callback.accept(transaction);
             }
         });
     }

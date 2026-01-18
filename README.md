@@ -103,11 +103,15 @@ HytaleDevLib provides 13 main helper classes that simplify Hytale plugin develop
 - **Velocity control** - Random or custom velocities for realistic drop patterns
 
 ### ContainerHelper
-- **Container change tracking** - Monitor when items are added/removed from containers
-- **Position-based registration** - Track specific chests, furnaces, and storage blocks
+- **Automatic transaction parsing** - Get item ID, quantity, and action automatically
+- **Interaction-based registration** - Auto-register containers when players interact with them
+- **Existing container support** - Works with containers from previous worlds
+- **Correct shift-click detection** - Properly detects ADDED vs REMOVED for shift-click transfers
+- **ContainerTransaction API** - Clean API with `getAction()`, `getItemId()`, `getQuantity()`
+- **Helper methods** - `isAdded()`, `isRemoved()`, `isMoved()`, `isSet()`
 - **Event filtering** - Separate callbacks for add, remove, or all changes
 - **Chest protection** - Build protection systems and item logging
-- **Transaction details** - Full access to item IDs, quantities, and slot information
+- **64 container types** - Supports all chests, workbenches, and furnaces
 - **Multi-container support** - Track multiple containers across worlds
 
 ### ComponentHelper

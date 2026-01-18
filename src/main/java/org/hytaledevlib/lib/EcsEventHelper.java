@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.DiscoverZoneEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.PlaceBlockEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -255,6 +256,58 @@ public class EcsEventHelper {
             
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to register onZoneDiscovery system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Register a callback for when a player interacts with a block (right-click/F key).
+     * 
+     * This creates and registers an ECS system to handle UseBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback BiConsumer that receives the block position and block type ID
+     */
+    public static void onBlockInteract(World world, BiConsumer<Vector3i, String> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, UseBlockEvent.Post> system = new EntityEventSystem<EntityStore, UseBlockEvent.Post>(UseBlockEvent.Post.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final UseBlockEvent.Post event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        callback.accept(position, blockTypeId);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockInteract callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockInteract ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockInteract system: " + e.getMessage());
         }
     }
     
