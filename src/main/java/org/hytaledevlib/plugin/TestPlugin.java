@@ -902,18 +902,21 @@ public class TestPlugin extends JavaPlugin {
         });
         
         // Test onItemDrop - WORKS (with correct quantity)
-        org.hytaledevlib.lib.EventHelper.onItemDrop(this, (itemId, quantity) -> {
-            LOGGER.at(Level.INFO).log("[EventTest] Item dropped: " + quantity + "x " + itemId);
+        org.hytaledevlib.lib.EventHelper.onItemDrop(this, (itemId, quantity, playerEntity) -> {
+            String playerName = playerEntity != null ? org.hytaledevlib.lib.EntityHelper.getName(playerEntity) : "Unknown";
+            LOGGER.at(Level.INFO).log("[EventTest] " + playerName + " dropped: " + quantity + "x " + itemId);
         });
         
         // Test onItemPickup - WORKS
-        org.hytaledevlib.lib.EventHelper.onItemPickup(this, (itemId, quantity) -> {
-            LOGGER.at(Level.INFO).log("[EventTest] Item picked up: " + quantity + "x " + itemId);
+        org.hytaledevlib.lib.EventHelper.onItemPickup(this, (itemId, quantity, playerEntity) -> {
+            String playerName = playerEntity != null ? org.hytaledevlib.lib.EntityHelper.getName(playerEntity) : "Unknown";
+            LOGGER.at(Level.INFO).log("[EventTest] " + playerName + " picked up: " + quantity + "x " + itemId);
         });
         
         // Test onCraftRecipe - Testing inventory transaction detection
-        org.hytaledevlib.lib.EventHelper.onCraftRecipe(this, (outputItemId, quantity) -> {
-            LOGGER.at(Level.INFO).log("[EventTest] Item crafted: " + quantity + "x " + outputItemId);
+        org.hytaledevlib.lib.EventHelper.onCraftRecipe(this, (outputItemId, quantity, playerEntity) -> {
+            String playerName = playerEntity != null ? org.hytaledevlib.lib.EntityHelper.getName(playerEntity) : "Unknown";
+            LOGGER.at(Level.INFO).log("[EventTest] " + playerName + " crafted: " + quantity + "x " + outputItemId);
         });
         
         LOGGER.at(Level.INFO).log("EventHelper tests registered! Working events:");

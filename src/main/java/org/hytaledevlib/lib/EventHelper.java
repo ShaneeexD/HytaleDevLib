@@ -1,6 +1,7 @@
 package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.event.events.entity.LivingEntityInventoryChangeEvent;
 import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent;
@@ -150,6 +151,61 @@ public class EventHelper {
         });
     }
     
+    
+    /**
+     * Register a callback for when items are dropped (with player entity).
+     * 
+     * This uses LivingEntityInventoryChangeEvent which fires when items
+     * are removed from inventory (dropped). Excludes block placement.
+     * 
+     * @param plugin Your plugin instance
+     * @param callback TriConsumer that receives itemId, quantity, and player entity
+     */
+    public static void onItemDrop(JavaPlugin plugin, TriConsumer<String, Integer, Entity> callback) {
+        plugin.getEventRegistry().registerGlobal(LivingEntityInventoryChangeEvent.class, (event) -> {
+            try {
+                var transaction = event.getTransaction();
+                if (transaction != null && transaction.succeeded()) {
+                    String transactionStr = transaction.toString();
+                    
+                    // Check if this is a REMOVE action (item dropped)
+                    // Exclude MOVE actions (placing blocks) and MaterialTransaction (crafting)
+                    if (transactionStr.contains("action=REMOVE") && 
+                        !transactionStr.contains("action=MOVE") &&
+                        !transactionStr.contains("MaterialTransaction{action=REMOVE")) {
+                        // Parse slotBefore and slotAfter to calculate actual quantity dropped
+                        Pattern beforePattern = Pattern.compile("slotBefore=ItemStack\\{itemId=([^,]+), quantity=(\\d+)");
+                        Pattern afterPattern = Pattern.compile("slotAfter=ItemStack\\{itemId=([^,]+), quantity=(\\d+)");
+                        
+                        Matcher beforeMatcher = beforePattern.matcher(transactionStr);
+                        Matcher afterMatcher = afterPattern.matcher(transactionStr);
+                        
+                        if (beforeMatcher.find()) {
+                            String itemId = beforeMatcher.group(1);
+                            int beforeQty = Integer.parseInt(beforeMatcher.group(2));
+                            int afterQty = 0;
+                            
+                            // If slotAfter exists, get its quantity
+                            if (afterMatcher.find()) {
+                                afterQty = Integer.parseInt(afterMatcher.group(2));
+                            }
+                            
+                            // Calculate actual dropped quantity
+                            int droppedQty = beforeQty - afterQty;
+                            if (droppedQty > 0) {
+                                // Parse UUID from event string and get player entity
+                                Entity playerEntity = getPlayerFromEvent(event);
+                                callback.accept(itemId, droppedQty, playerEntity);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Error in onItemDrop: " + e.getMessage());
+            }
+        });
+    }
+    
     /**
      * Register a callback for when items are picked up.
      * 
@@ -181,6 +237,49 @@ public class EventHelper {
                             String itemId = matcher.group(1);
                             int quantity = Integer.parseInt(matcher.group(2));
                             callback.accept(itemId, quantity);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Error in onItemPickup: " + e.getMessage());
+            }
+        });
+    }
+    
+    
+    /**
+     * Register a callback for when items are picked up (with player entity).
+     * 
+     * This uses LivingEntityInventoryChangeEvent which fires when items
+     * are added to inventory.
+     * 
+     * @param plugin Your plugin instance
+     * @param callback TriConsumer that receives itemId, quantity, and player entity
+     */
+    public static void onItemPickup(JavaPlugin plugin, TriConsumer<String, Integer, Entity> callback) {
+        plugin.getEventRegistry().registerGlobal(LivingEntityInventoryChangeEvent.class, (event) -> {
+            try {
+                var transaction = event.getTransaction();
+                if (transaction != null && transaction.succeeded()) {
+                    String transactionStr = transaction.toString();
+                    
+                    // Check if this is an ADD action (item picked up)
+                    // Exclude MOVE actions (placing blocks), crafting (MaterialTransaction), 
+                    // and crafting output (ListTransaction starting with ItemStackTransaction ADD + allOrNothing=false, filter=true)
+                    if (transactionStr.contains("action=ADD") && 
+                        !transactionStr.contains("action=MOVE") &&
+                        !transactionStr.contains("MaterialTransaction{action=REMOVE") &&
+                        !(transactionStr.startsWith("ListTransaction{succeeded=true, list=[ItemStackTransaction{succeeded=true, action=ADD") && 
+                          transactionStr.contains("allOrNothing=false, filter=true"))) {
+                        // Parse item details from transaction string
+                        Pattern pattern = Pattern.compile("itemId=([^,]+), quantity=(\\d+)");
+                        Matcher matcher = pattern.matcher(transactionStr);
+                        if (matcher.find()) {
+                            String itemId = matcher.group(1);
+                            int quantity = Integer.parseInt(matcher.group(2));
+                            // Parse UUID from event string and get player entity
+                            Entity playerEntity = getPlayerFromEvent(event);
+                            callback.accept(itemId, quantity, playerEntity);
                         }
                     }
                 }
@@ -275,6 +374,65 @@ public class EventHelper {
                 LOGGER.atWarning().log("Error in onCraftRecipe: " + e.getMessage());
             }
         });
+    }
+    
+    
+    /**
+     * Register a callback for when a player crafts an item (with player entity).
+     * 
+     * NOTE: Crafting detection through LivingEntityInventoryChangeEvent.
+     * Crafting shows up as ADD transactions with an "output=" field.
+     * 
+     * @param plugin Your plugin instance
+     * @param callback TriConsumer that receives output item ID, quantity, and player entity
+     */
+    public static void onCraftRecipe(JavaPlugin plugin, TriConsumer<String, Integer, Entity> callback) {
+        plugin.getEventRegistry().registerGlobal(LivingEntityInventoryChangeEvent.class, (event) -> {
+            try {
+                var transaction = event.getTransaction();
+                if (transaction != null && transaction.succeeded()) {
+                    String transactionStr = transaction.toString();
+                    
+                    // Crafting creates TWO ListTransactions:
+                    // 1. Materials removed: MaterialTransaction{action=REMOVE} + nested transactions
+                    // 2. Item added: ItemStackTransaction{action=ADD} with allOrNothing=false, filter=true
+                    // We detect the second one (the crafted item being added)
+                    
+                    // Pattern: ListTransaction with ONLY ItemStackTransaction ADD (no MaterialTransaction)
+                    // and has allOrNothing=false, filter=true (distinguishes from regular pickups)
+                    if (transactionStr.startsWith("ListTransaction{succeeded=true, list=[ItemStackTransaction{succeeded=true, action=ADD") &&
+                        transactionStr.contains("allOrNothing=false, filter=true")) {
+                        
+                        // Parse the crafted item
+                        Pattern craftPattern = Pattern.compile("ItemStackTransaction\\{succeeded=true, action=ADD, query=ItemStack\\{itemId=([^,]+), quantity=(\\d+)");
+                        Matcher craftMatcher = craftPattern.matcher(transactionStr);
+                        
+                        if (craftMatcher.find()) {
+                            String itemId = craftMatcher.group(1);
+                            int quantity = Integer.parseInt(craftMatcher.group(2));
+                            // Parse UUID from event string and get player entity
+                            Entity playerEntity = getPlayerFromEvent(event);
+                            callback.accept(itemId, quantity, playerEntity);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Error in onCraftRecipe: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Helper method to extract player entity from LivingEntityInventoryChangeEvent.
+     * Returns the entity directly from the event.
+     */
+    private static Entity getPlayerFromEvent(LivingEntityInventoryChangeEvent event) {
+        try {
+            return event.getEntity();
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to get player from event: " + e.getMessage());
+        }
+        return null;
     }
     
     /**
