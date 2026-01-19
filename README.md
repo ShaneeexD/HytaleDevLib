@@ -12,7 +12,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides 14 main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides 15 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting
@@ -43,6 +43,13 @@ HytaleDevLib provides 14 main helper classes that simplify Hytale plugin develop
 - Readable NPC type names (e.g., "Cow", "Minnow", "Skeleton_Fighter")
 - **NPC spawning** - Spawn any NPC by role name with proper ECS setup
 
+### DeathHelper (Implemented for next version)
+- Track entity deaths
+- Get what entity died (player or NPC)
+- Get killer information (player, NPC or environment)
+- Get damage source and how they died
+- Get death position
+  
 ### ZoneHelper
 - **Zone discovery tracking** - Track which zones each player has discovered
 - **Current zone queries** - Get a player's current zone or check if they're in a specific zone
