@@ -9,6 +9,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 ## Documentation
 
 **[View Full Documentation on Wiki →](https://github.com/ShaneeexD/HytaleDevLib/wiki)**
+
 **[Mod on CurseForge →](https://www.curseforge.com/hytale/mods/htdevlib)**
 
 ## Features
