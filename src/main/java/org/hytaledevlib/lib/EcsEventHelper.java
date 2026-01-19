@@ -2,6 +2,7 @@ package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.dependency.Dependency;
 import com.hypixel.hytale.component.dependency.RootDependency;
@@ -9,6 +10,8 @@ import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.server.core.entity.Entity;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.DamageBlockEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.DiscoverZoneEvent;
@@ -38,6 +41,14 @@ import java.util.function.BiConsumer;
 public class EcsEventHelper {
     
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+    
+    /**
+     * Functional interface for callbacks that accept three parameters.
+     */
+    @FunctionalInterface
+    public interface TriConsumer<T, U, V> {
+        void accept(T t, U u, V v);
+    }
     
     /**
      * Register a callback for when a player breaks a block.
@@ -90,6 +101,67 @@ public class EcsEventHelper {
             // Register the system with the entity store
             EntityStore.REGISTRY.registerSystem(system);
             LOGGER.atInfo().log("Registered onBlockBreak ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockBreak system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Register a callback for when a player breaks a block (with player entity).
+     * 
+     * This creates and registers an ECS system to handle BreakBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback TriConsumer that receives the block position, block type ID, and player entity
+     */
+    public static void onBlockBreak(World world, TriConsumer<Vector3i, String, Entity> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, BreakBlockEvent> system = new EntityEventSystem<EntityStore, BreakBlockEvent>(BreakBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final BreakBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        
+                        // Filter out "Empty" blocks
+                        if (!"Empty".equals(blockTypeId)) {
+                            // Get the player entity reference
+                            com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                            UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                            if (uuidComp != null) {
+                                Entity playerEntity = world.getEntity(uuidComp.getUuid());
+                                callback.accept(position, blockTypeId, playerEntity);
+                            }
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockBreak callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockBreak (with entity) ECS system");
             
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to register onBlockBreak system: " + e.getMessage());
@@ -150,6 +222,64 @@ public class EcsEventHelper {
     }
     
     /**
+     * Register a callback for when a player places a block (with player entity).
+     * 
+     * This creates and registers an ECS system to handle PlaceBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback TriConsumer that receives the block position, item ID being placed, and player entity
+     */
+    public static void onBlockPlace(World world, TriConsumer<Vector3i, String, Entity> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, PlaceBlockEvent> system = new EntityEventSystem<EntityStore, PlaceBlockEvent>(PlaceBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final PlaceBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String itemId = event.getItemInHand() != null ? event.getItemInHand().getItemId() : "Unknown";
+                        
+                        // Get the player entity reference
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity playerEntity = world.getEntity(uuidComp.getUuid());
+                            callback.accept(position, itemId, playerEntity);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockPlace callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockPlace (with entity) ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockPlace system: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Register a callback for when a player damages a block (mining progress).
      * 
      * This creates and registers an ECS system to handle DamageBlockEvent.
@@ -201,6 +331,69 @@ public class EcsEventHelper {
             // Register the system with the entity store
             EntityStore.REGISTRY.registerSystem(system);
             LOGGER.atInfo().log("Registered onBlockDamage ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockDamage system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Register a callback for when a player damages a block (with player entity).
+     * 
+     * This creates and registers an ECS system to handle DamageBlockEvent.
+     * This event fires continuously while a player is mining/damaging a block.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives block position, block type ID, current damage, damage amount, item in hand, and player entity
+     */
+    public static void onBlockDamage(World world, BlockDamageWithEntityCallback callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, DamageBlockEvent> system = new EntityEventSystem<EntityStore, DamageBlockEvent>(DamageBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final DamageBlockEvent event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        float currentDamage = event.getCurrentDamage();
+                        float damage = event.getDamage();
+                        ItemStack itemInHand = event.getItemInHand();
+                        String itemId = itemInHand != null ? itemInHand.getItemId() : null;
+                        
+                        // Get the player entity reference
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity playerEntity = world.getEntity(uuidComp.getUuid());
+                            callback.accept(position, blockTypeId, currentDamage, damage, itemId, playerEntity);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockDamage callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockDamage (with entity) ECS system");
             
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to register onBlockDamage system: " + e.getMessage());
@@ -327,6 +520,25 @@ public class EcsEventHelper {
          * @param itemInHand The item ID in the player's hand (null if empty)
          */
         void accept(Vector3i position, String blockTypeId, float currentDamage, float damage, @Nullable String itemInHand);
+    }
+    
+    /**
+     * Functional interface for block damage callbacks with player entity.
+     * Provides detailed information about block mining progress and the player.
+     */
+    @FunctionalInterface
+    public interface BlockDamageWithEntityCallback {
+        /**
+         * Called when a block is damaged by a player.
+         * 
+         * @param position The position of the block being damaged
+         * @param blockTypeId The block type ID (e.g., "Rock_Stone")
+         * @param currentDamage The current accumulated damage on the block
+         * @param damage The amount of damage being applied this tick
+         * @param itemInHand The item ID in the player's hand (null if empty)
+         * @param playerEntity The player entity damaging the block
+         */
+        void accept(Vector3i position, String blockTypeId, float currentDamage, float damage, @Nullable String itemInHand, Entity playerEntity);
     }
     
     /**

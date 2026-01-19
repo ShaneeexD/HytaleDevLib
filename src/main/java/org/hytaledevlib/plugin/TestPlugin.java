@@ -934,9 +934,17 @@ public class TestPlugin extends JavaPlugin {
     private void registerEcsEventTests(World world) {
         LOGGER.at(Level.INFO).log("Registering ECS EventHelper tests...");
         
-        // Test onBlockBreak - ECS event
-        org.hytaledevlib.lib.EcsEventHelper.onBlockBreak(world, (position, blockTypeId) -> {
-            LOGGER.at(Level.INFO).log("[EcsEventTest] Block broken at " + position + " - Type: " + blockTypeId);
+        // Test onBlockDamage - Drain health and stamina when damaging/mining blocks
+        org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (position, blockTypeId, currentDamage, damage, itemInHand, playerEntity) -> {
+            if (playerEntity != null) {
+                // Drain 5 health and stamina per damage tick
+                float newHealth = org.hytaledevlib.lib.StatsHelper.addStat(playerEntity, "Health", -5.0f);
+                float newStamina = org.hytaledevlib.lib.StatsHelper.addStat(playerEntity, "Stamina", -5.0f);
+                
+                LOGGER.at(Level.INFO).log("[StatsTest] Block damaged: " + blockTypeId + 
+                    " | Damage: " + damage + "/" + currentDamage +
+                    " | Health: " + newHealth + " | Stamina: " + newStamina);
+            }
         });
         
         // Test onBlockPlace - ECS event (container auto-registration commented out for testing)
@@ -1216,5 +1224,9 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  4. Watch for ENTITY DEATH logs");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
+    }
+    
+    private void registerStatsHelperTest(World world) {
+        StatsHelperTest.register(this, world);
     }
 }
