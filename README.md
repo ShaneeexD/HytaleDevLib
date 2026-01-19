@@ -17,13 +17,15 @@ This is a very early work in progress and there is a lot planned, feel free to m
 HytaleDevLib provides 15 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
-- Simplified event registration for item drops, pickups, and crafting
+- Simplified event registration for item drops, pickups, and crafting **with player entity access**
 - Player events: chat messages, join/disconnect tracking
 - Automatic transaction parsing for inventory events
+- Access player stats directly in item event callbacks
 - No manual EventRegistry boilerplate
 
 ### EcsEventHelper
-- Block events: break, place, and damage tracking with mining progress
+- Block events: break, place, and damage tracking **with player entity access**
+- Mining progress tracking and player-specific block interactions
 - Zone discovery: detect map exploration with zone metadata
 - Automatic ECS system registration for player events
 - Smart filtering to remove false positives (e.g., "Empty" blocks)
