@@ -52,6 +52,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register EquipmentHelper test
                     registerEquipmentHelperTest(world);
                     
+                    // Register DeathHelper test
+                    registerDeathHelperTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -869,6 +872,17 @@ public class TestPlugin extends JavaPlugin {
                                 LOGGER.at(Level.INFO).log("New Item: (empty)");
                             }
                             
+                            // EXAMPLE: Cancel equipping specific items (uncomment to test)
+                            // Prevent equipping any item with "Leather" in the name
+                            
+                            if (change.isEquipping() && change.getNewItemId() != null) {
+                                if (change.getNewItemId().contains("Armor_Adamantite_Head")) {
+                                    LOGGER.at(Level.INFO).log("CANCELLED: Cannot equip leather items!");
+                                    change.setCancelled(true);
+                                }
+                            }
+                            
+                            
                             LOGGER.at(Level.INFO).log("---");
                         });
                         break;
@@ -1123,6 +1137,83 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  2. Change items in your offhand/utility slots");
         LOGGER.at(Level.INFO).log("  3. Switch tools");
         LOGGER.at(Level.INFO).log("  4. Watch for EQUIPMENT CHANGE logs");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Register DeathHelper test to track entity deaths.
+     */
+    private void registerDeathHelperTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering DeathHelper test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+        
+        org.hytaledevlib.lib.DeathHelper.onEntityDeath(world, (death) -> {
+            com.hypixel.hytale.math.vector.Vector3d pos = death.getPosition();
+            
+            LOGGER.at(Level.INFO).log("═══════════════════════════════════════");
+            LOGGER.at(Level.INFO).log("💀 ENTITY DEATH DETECTED");
+            LOGGER.at(Level.INFO).log("═══════════════════════════════════════");
+            
+            // Log who died (using helper methods)
+            String entityName = death.getEntityName();
+            String entityType = death.isPlayer() ? "Player" : "NPC";
+            LOGGER.at(Level.INFO).log("☠️  Entity Died: " + entityName + " (" + entityType + ")");
+            
+            // Log death position
+            if (pos != null) {
+                LOGGER.at(Level.INFO).log("📍 Death Position: X=" + String.format("%.2f", pos.x) + 
+                    " Y=" + String.format("%.2f", pos.y) + 
+                    " Z=" + String.format("%.2f", pos.z));
+            }
+            
+            // Log what killed the entity (using helper methods)
+            if (death.wasKilledByEntity()) {
+                LOGGER.at(Level.INFO).log("⚔️  Killed by: ENTITY");
+                String killerName = death.getKillerName();
+                String killerType = death.isKillerPlayer() ? "Player" : "NPC";
+                LOGGER.at(Level.INFO).log("   Killer: " + killerName + " (" + killerType + ")");
+            } else if (death.wasKilledByProjectile()) {
+                LOGGER.at(Level.INFO).log("🏹 Killed by: PROJECTILE");
+                String shooterName = death.getKillerName();
+                String shooterType = death.isKillerPlayer() ? "Player" : "NPC";
+                LOGGER.at(Level.INFO).log("   Shooter: " + shooterName + " (" + shooterType + ")");
+            } else if (death.wasKilledByEnvironment()) {
+                LOGGER.at(Level.INFO).log("🌍 Killed by: ENVIRONMENT");
+                String envType = death.getEnvironmentType();
+                if (envType != null) {
+                    LOGGER.at(Level.INFO).log("   Type: " + envType);
+                }
+            } else {
+                LOGGER.at(Level.INFO).log("❓ Killed by: UNKNOWN/OTHER");
+            }
+            
+            // Log damage info if available
+            com.hypixel.hytale.server.core.modules.entity.damage.Damage damageInfo = death.getDamageInfo();
+            if (damageInfo != null) {
+                LOGGER.at(Level.INFO).log("💥 Damage Amount: " + damageInfo.getAmount());
+                com.hypixel.hytale.server.core.modules.entity.damage.DamageCause cause = damageInfo.getCause();
+                if (cause != null) {
+                    LOGGER.at(Level.INFO).log("💢 Damage Cause: " + cause.getId());
+                }
+            }
+            
+            LOGGER.at(Level.INFO).log("═══════════════════════════════════════");
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ DeathHelper test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Tracking all entity deaths");
+        LOGGER.at(Level.INFO).log("  ✓ Logs death position");
+        LOGGER.at(Level.INFO).log("  ✓ Logs killer information");
+        LOGGER.at(Level.INFO).log("  ✓ Logs damage source and cause");
+        LOGGER.at(Level.INFO).log("");
+        LOGGER.at(Level.INFO).log("📝 To test:");
+        LOGGER.at(Level.INFO).log("  1. Kill an NPC or mob");
+        LOGGER.at(Level.INFO).log("  2. Die from fall damage");
+        LOGGER.at(Level.INFO).log("  3. Die from drowning");
+        LOGGER.at(Level.INFO).log("  4. Watch for ENTITY DEATH logs");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
     }

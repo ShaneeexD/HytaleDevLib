@@ -563,15 +563,83 @@ public class EquipmentHelper {
     
     /**
      * Revert an equipment change (for cancellation).
-     * Note: Cancellation may not work perfectly as ItemContainer doesn't have a direct setSlot method.
-     * This is a best-effort implementation.
+     * Restores the old item to the equipment slot AND returns the new item to its source.
      */
     private static void revertEquipmentChange(ItemContainer container, EquipmentChange change) {
         try {
-            // TODO: Implement proper revert logic when ItemContainer API is better understood
-            // For now, log that cancellation was requested
-            LOGGER.atInfo().log("Equipment change cancellation requested for slot " + change.getSlotIndex());
-            LOGGER.atWarning().log("Note: Cancellation may not be fully implemented yet");
+            int slotIndex = change.getSlotIndex();
+            ItemStack oldItem = change.getOldItem();
+            ItemStack newItem = change.getNewItem();
+            Transaction transaction = change.getTransaction();
+            
+            if (slotIndex < 0 || slotIndex >= container.getCapacity()) {
+                LOGGER.atWarning().log("Cannot revert equipment change: invalid slot index " + slotIndex);
+                return;
+            }
+            
+            // Step 1: Restore the old item to the equipment slot
+            com.hypixel.hytale.server.core.inventory.transaction.ItemStackSlotTransaction restoreTransaction = 
+                container.setItemStackForSlot((short) slotIndex, oldItem);
+            
+            if (!restoreTransaction.succeeded()) {
+                LOGGER.atWarning().log("Failed to restore old item to equipment slot");
+                return;
+            }
+            
+            // Step 2: Return the new item to its source location (if it exists)
+            if (newItem != null && !ItemStack.isEmpty(newItem)) {
+                try {
+                    // Try to extract source slot from MoveTransaction
+                    java.lang.reflect.Method getRemoveTransaction = transaction.getClass().getMethod("getRemoveTransaction");
+                    Object removeTransaction = getRemoveTransaction.invoke(transaction);
+                    
+                    if (removeTransaction != null) {
+                        // Get the source slot where the item came from
+                        java.lang.reflect.Method getSlot = removeTransaction.getClass().getMethod("getSlot");
+                        int sourceSlot = ((Short)getSlot.invoke(removeTransaction)).intValue();
+                        
+                        // Get the source container (inventory) from the entity
+                        LivingEntity entity = change.getEntity();
+                        Inventory inventory = entity.getInventory();
+                        
+                        // The slot number is already correct for its container
+                        // We just need to figure out which container it came from
+                        // Try both hotbar and storage to see which one has the capacity
+                        ItemContainer sourceContainer = null;
+                        
+                        if (change.getSlotType() == EquipmentSlotType.ARMOR) {
+                            // Check if slot is within hotbar range
+                            if (sourceSlot >= 0 && sourceSlot < inventory.getHotbar().getCapacity()) {
+                                sourceContainer = inventory.getHotbar();
+                                LOGGER.atInfo().log("DEBUG: Using hotbar, slot: " + sourceSlot);
+                            } 
+                            // Otherwise it's in storage
+                            else if (sourceSlot >= 0 && sourceSlot < inventory.getStorage().getCapacity()) {
+                                sourceContainer = inventory.getStorage();
+                                LOGGER.atInfo().log("DEBUG: Using storage, slot: " + sourceSlot);
+                            }
+                        }
+                        
+                        // Return the item to its source slot (no adjustment needed)
+                        if (sourceContainer != null && sourceSlot >= 0 && sourceSlot < sourceContainer.getCapacity()) {
+                            com.hypixel.hytale.server.core.inventory.transaction.ItemStackSlotTransaction returnTransaction = 
+                                sourceContainer.setItemStackForSlot((short) sourceSlot, newItem);
+                            
+                            if (returnTransaction.succeeded()) {
+                                LOGGER.atInfo().log("Successfully cancelled equipment change - item returned to slot " + sourceSlot);
+                            } else {
+                                LOGGER.atWarning().log("Restored equipment slot but failed to return item to source");
+                            }
+                        } else {
+                            LOGGER.atWarning().log("Could not determine source container/slot - item may be lost");
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.atWarning().log("Failed to return item to source: " + e.getMessage());
+                }
+            } else {
+                LOGGER.atInfo().log("Successfully cancelled equipment change for slot " + slotIndex);
+            }
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to revert equipment change: " + e.getMessage());
         }
