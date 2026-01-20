@@ -759,6 +759,7 @@ public class EcsEventHelper {
         private final float damage;
         private final String itemInHand;
         private final Entity playerEntity;
+        private final com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType blockType;
         
         private BlockDamageContext(World world, Vector3i position, String blockTypeId, 
                                    float currentDamage, float damage, String itemInHand, Entity playerEntity) {
@@ -769,6 +770,7 @@ public class EcsEventHelper {
             this.damage = damage;
             this.itemInHand = itemInHand;
             this.playerEntity = playerEntity;
+            this.blockType = world.getBlockType(position);
         }
         
         public Vector3i getPosition() { return position; }
@@ -778,6 +780,37 @@ public class EcsEventHelper {
         public String getItemInHand() { return itemInHand; }
         public Entity getPlayerEntity() { return playerEntity; }
         public World getWorld() { return world; }
+        
+        /**
+         * Get the gather type of the block (e.g., "Rocks", "Woods", "Soils", "SoftBlocks", etc.).
+         * This is useful for filtering which blocks a tool should work on.
+         * 
+         * @return The gather type string, or null if not available
+         */
+        public String getGatherType() {
+            try {
+                if (blockType != null) {
+                    // Access: blockType.gathering.breaking.gatherType
+                    java.lang.reflect.Field gatheringField = blockType.getClass().getDeclaredField("gathering");
+                    gatheringField.setAccessible(true);
+                    Object gathering = gatheringField.get(blockType);
+                    
+                    if (gathering != null) {
+                        java.lang.reflect.Method getBreakingMethod = gathering.getClass().getMethod("getBreaking");
+                        Object breaking = getBreakingMethod.invoke(gathering);
+                        
+                        if (breaking != null) {
+                            java.lang.reflect.Method getGatherTypeMethod = breaking.getClass().getMethod("getGatherType");
+                            Object gatherType = getGatherTypeMethod.invoke(breaking);
+                            return gatherType != null ? gatherType.toString() : null;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to get gather type: " + e.getMessage());
+            }
+            return null;
+        }
         
         /**
          * Get the current health of the block (0.0 = destroyed, 1.0 = full health).

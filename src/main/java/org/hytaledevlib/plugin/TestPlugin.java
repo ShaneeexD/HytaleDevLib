@@ -2,6 +2,7 @@ package org.hytaledevlib.plugin;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
@@ -78,6 +79,9 @@ public class TestPlugin extends JavaPlugin {
                         //testZoneHelper(world);
                         startTickTests();
                         LOGGER.at(Level.INFO).log("=== startTickTests() called! ===");
+                        
+                        // Test game mode switching for player Se7enity
+                        testGameModeSwitching(world);
                     });
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
@@ -938,7 +942,7 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("Registering ECS EventHelper tests...");
         
         // Test onBlockDamage - Drain health and stamina when damaging/mining blocks
-        org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (position, blockTypeId, currentDamage, damage, itemInHand, playerEntity) -> {
+       /** org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (position, blockTypeId, currentDamage, damage, itemInHand, playerEntity) -> {
             if (playerEntity != null) {
                 // Drain 5 health and stamina per damage tick
                 float newHealth = org.hytaledevlib.lib.StatsHelper.addStat(playerEntity, "Health", -5.0f);
@@ -949,7 +953,7 @@ public class TestPlugin extends JavaPlugin {
                     " | Health: " + newHealth + " | Stamina: " + newStamina);
             }
         });
-        
+        */
         // Test onBlockPlace - ECS event (container auto-registration commented out for testing)
         org.hytaledevlib.lib.EcsEventHelper.onBlockPlace(world, (position, itemId) -> {
             LOGGER.at(Level.INFO).log("[EcsEventTest] Block placed at " + position + " - Item: " + itemId);
@@ -988,18 +992,22 @@ public class TestPlugin extends JavaPlugin {
                 " | Tool: " + tool);
         });
         
-        // Test onBlockDamage with context - Mining speed multiplier test
+        // Test onBlockDamage with context - Mining speed multiplier test with gather type filtering
         org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (context) -> {
-            // TEST: Rock_Stone mined with Tool_Pickaxe_Crude gets 2x mining speed
-            if ("Rock_Stone".equals(context.getBlockTypeId()) && "Tool_Pickaxe_Crude".equals(context.getItemInHand())) {
+            // TEST: Pickaxe works 2x faster on "Rocks" gather type
+            String gatherType = context.getGatherType();
+            String tool = context.getItemInHand();
+            
+            if ("Tool_Pickaxe_Crude".equals(tool) && "Rocks".equals(gatherType)) {
                 context.setMiningSpeedMultiplier(2.0f);
                 
                 String playerName = context.getPlayerEntity() != null ? 
                     org.hytaledevlib.lib.EntityHelper.getName(context.getPlayerEntity()) : "Unknown";
                 
-                LOGGER.at(Level.INFO).log("⚡ MINING SPEED BOOST! Player " + playerName + " mining Rock_Stone with Tool_Pickaxe_Crude");
+                LOGGER.at(Level.INFO).log("⚡ PICKAXE EFFICIENCY! Player " + playerName + " mining " + context.getBlockTypeId());
+                LOGGER.at(Level.INFO).log("   Gather Type: " + gatherType + " | Tool: " + tool);
                 LOGGER.at(Level.INFO).log("   Block Health: " + String.format("%.2f", context.getBlockHealth()) + 
-                    " | Applied 2x multiplier");
+                    " | Applied 2x multiplier for Rocks");
             }
         });
         
@@ -1263,5 +1271,79 @@ public class TestPlugin extends JavaPlugin {
     
     private void registerStatsHelperTest(World world) {
         StatsHelperTest.register(this, world);
+    }
+    
+    /**
+     * Test game mode switching for player Se7enity.
+     * Switches to CREATIVE after 100 ticks, then back to ADVENTURE after another 100 ticks.
+     */
+    private void testGameModeSwitching(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Starting GameMode switching test for Se7enity");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Find player Se7enity
+        com.hypixel.hytale.server.core.entity.Entity targetPlayer = null;
+        for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
+            if (org.hytaledevlib.lib.EntityHelper.isPlayer(entity)) {
+                String name = org.hytaledevlib.lib.EntityHelper.getName(entity);
+                if ("Se7enity".equals(name)) {
+                    targetPlayer = entity;
+                    break;
+                }
+            }
+        }
+        
+        if (targetPlayer == null) {
+            LOGGER.at(Level.WARNING).log("Player Se7enity not found! Test cancelled.");
+            return;
+        }
+        
+        final com.hypixel.hytale.server.core.entity.Entity player = targetPlayer;
+        
+        // Get current game mode
+        GameMode currentMode = org.hytaledevlib.lib.PlayerHelper.getGameMode(player);
+        LOGGER.at(Level.INFO).log("Se7enity's current game mode: " + (currentMode != null ? currentMode.name() : "UNKNOWN"));
+        
+        // Get game mode instances using valueOf
+        GameMode creativeMode;
+        GameMode adventureMode;
+        try {
+            // Use correct capitalization: Creative and Adventure (not CREATIVE/ADVENTURE)
+            creativeMode = GameMode.valueOf("Creative");
+            adventureMode = GameMode.valueOf("Adventure");
+            LOGGER.at(Level.INFO).log("Successfully created GameMode instances");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Failed to get GameMode instances: " + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+        
+        // Switch to CREATIVE after 100 ticks
+        LOGGER.at(Level.INFO).log("⏱️ Will switch Se7enity to CREATIVE in 100 ticks (5 seconds)...");
+        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+            boolean success = org.hytaledevlib.lib.PlayerHelper.setGameMode(world, player, creativeMode);
+            if (success) {
+                LOGGER.at(Level.INFO).log("✅ Se7enity switched to CREATIVE mode!");
+                org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You are now in CREATIVE mode!");
+                
+                // Switch back to ADVENTURE after another 100 ticks
+                LOGGER.at(Level.INFO).log("⏱️ Will switch Se7enity back to ADVENTURE in 100 ticks (5 seconds)...");
+                org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+                    boolean success2 = org.hytaledevlib.lib.PlayerHelper.setGameMode(world, player, adventureMode);
+                    if (success2) {
+                        LOGGER.at(Level.INFO).log("✅ Se7enity switched back to ADVENTURE mode!");
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You are now in ADVENTURE mode!");
+                    } else {
+                        LOGGER.at(Level.WARNING).log("❌ Failed to switch Se7enity back to ADVENTURE mode");
+                    }
+                });
+            } else {
+                LOGGER.at(Level.WARNING).log("❌ Failed to switch Se7enity to CREATIVE mode");
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("GameMode switching test scheduled!");
+        LOGGER.at(Level.INFO).log("========================================");
     }
 }

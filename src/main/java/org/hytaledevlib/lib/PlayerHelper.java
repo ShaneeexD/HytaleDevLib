@@ -105,6 +105,45 @@ public class PlayerHelper {
     }
 
     /**
+     * Set the player's game mode.
+     * 
+     * This method uses the Player class's internal setGameMode method which:
+     * - Fires a ChangeGameModeEvent (can be cancelled)
+     * - Updates movement manager
+     * - Sends game mode packet to client
+     * - Runs game mode switch handlers
+     * 
+     * @param world The world the player is in
+     * @param entity The entity (must be a Player)
+     * @param gameMode The GameMode to set (CREATIVE, ADVENTURE)
+     * @return true if game mode was changed successfully, false if not a player or event was cancelled
+     */
+    public static boolean setGameMode(World world, Entity entity, GameMode gameMode) {
+        if (!(entity instanceof Player)) {
+            return false;
+        }
+
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            // Get the player's entity reference
+            Ref<EntityStore> playerRef = entity.getReference();
+            if (playerRef == null) {
+                LOGGER.at(Level.WARNING).log("Could not get entity reference for player");
+                return false;
+            }
+            
+            // Call Player.setGameMode static method
+            Player.setGameMode(playerRef, gameMode, store);
+            return true;
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error setting game mode: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Send a message to a player.
      * 
      * @param entity The entity (must be a Player)
