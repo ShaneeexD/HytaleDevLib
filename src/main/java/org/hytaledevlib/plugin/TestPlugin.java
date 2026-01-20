@@ -1017,6 +1017,21 @@ public class TestPlugin extends JavaPlugin {
                         LOGGER.at(Level.INFO).log("Quantity: " + transaction.getQuantity());
                     }
                     LOGGER.at(Level.INFO).log("Currently tracking: " + org.hytaledevlib.lib.ContainerHelper.getTrackedContainerCount(world) + " container(s)");
+                    
+                    // TEST: Cancel all transactions for player "Se7enity"
+                    // Get all players and find the one interacting with this container
+                    for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
+                        if (org.hytaledevlib.lib.EntityHelper.isPlayer(entity)) {
+                            String name = org.hytaledevlib.lib.EntityHelper.getName(entity);
+                            if ("Se7enity".equals(name)) {
+                                // Cancel the transaction - Se7enity cannot add or remove items from containers
+                                transaction.setCancelled(true);
+                                LOGGER.at(Level.INFO).log("❌ TRANSACTION CANCELLED - Player Se7enity cannot use containers!");
+                                org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "You are not allowed to use containers!");
+                                break;
+                            }
+                        }
+                    }
                 });
                 
                 int newCount = org.hytaledevlib.lib.ContainerHelper.getTrackedContainerCount(world);
