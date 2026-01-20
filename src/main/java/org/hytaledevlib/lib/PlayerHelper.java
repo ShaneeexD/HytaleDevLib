@@ -3,12 +3,16 @@ package org.hytaledevlib.lib;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nullable;
@@ -185,5 +189,109 @@ public class PlayerHelper {
             LOGGER.at(Level.WARNING).log("Error checking permission: " + e.getMessage());
             return defaultValue;
         }
+    }
+
+    /**
+     * Result object containing information about the block a player is looking at.
+     */
+    public static class LookingAtResult {
+        private final Vector3i blockPosition;
+        private final BlockType blockType;
+        private final double distance;
+
+        public LookingAtResult(Vector3i blockPosition, BlockType blockType, double distance) {
+            this.blockPosition = blockPosition;
+            this.blockType = blockType;
+            this.distance = distance;
+        }
+
+        /**
+         * Get the position of the block.
+         * @return Block position
+         */
+        public Vector3i getBlockPosition() {
+            return blockPosition;
+        }
+
+        /**
+         * Get the block type.
+         * @return BlockType
+         */
+        public BlockType getBlockType() {
+            return blockType;
+        }
+
+        /**
+         * Get the block type ID string.
+         * @return Block type ID (e.g., "Rock_Stone")
+         */
+        public String getBlockId() {
+            return blockType != null ? blockType.getId() : null;
+        }
+
+        /**
+         * Get the distance to the block.
+         * @return Distance in blocks
+         */
+        public double getDistance() {
+            return distance;
+        }
+
+        /**
+         * Check if a block was found.
+         * @return true if a block was found
+         */
+        public boolean hasBlock() {
+            return blockPosition != null && blockType != null;
+        }
+    }
+
+    /**
+     * Get the block a player is looking at with distance information.
+     * This is a simple 1-2 line method to get what a player is looking at.
+     * 
+     * 
+     * @param world The world
+     * @param entity The player entity  
+     * @param checkDistance Maximum distance to check (e.g., 0.5 for close, 5.0 for far)
+     * @return LookingAtResult containing block info and distance, or empty result if no block found
+     */
+    @SuppressWarnings("deprecation")
+    public static LookingAtResult getLookingAt(World world, Entity entity, double checkDistance) {
+        if (!(entity instanceof Player)) {
+            return new LookingAtResult(null, null, 0.0);
+        }
+
+        try {
+            Player player = (Player) entity;
+            
+            // Get the block the player is looking at
+            Vector3i targetBlockPos = com.hypixel.hytale.server.core.util.TargetUtil.getTargetBlock(
+                player.getPlayerRef().getReference(), 
+                checkDistance, 
+                player.getPlayerRef().getReference().getStore()
+            );
+
+            if (targetBlockPos != null) {
+                BlockType blockType = world.getBlockType(targetBlockPos);
+                return new LookingAtResult(targetBlockPos, blockType, checkDistance);
+            }
+
+            return new LookingAtResult(null, null, 0.0);
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error getting looking at block: " + e.getMessage());
+            return new LookingAtResult(null, null, 0.0);
+        }
+    }
+
+    /**
+     * Get the block a player is looking at with default distance of 5.0 blocks.
+     * 
+     * @param world The world
+     * @param entity The player entity
+     * @return LookingAtResult containing block info and distance
+     */
+    public static LookingAtResult getLookingAt(World world, Entity entity) {
+        return getLookingAt(world, entity, 5.0);
     }
 }

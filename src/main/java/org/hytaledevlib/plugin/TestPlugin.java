@@ -69,12 +69,15 @@ public class TestPlugin extends JavaPlugin {
                     // Test all helpers: Wait 100 ticks for player to fully load
                     LOGGER.at(Level.INFO).log("Testing helpers: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
+                        LOGGER.at(Level.INFO).log("=== 100 ticks elapsed, starting tick tests now! ===");
                         // testInventoryHelper(world);
                         // testPlayerHelper(world);
                         // testEntityHelper(world);
                         // testUIHelper(world);
                         // testBlockStateHelper(world);
                         //testZoneHelper(world);
+                        startTickTests();
+                        LOGGER.at(Level.INFO).log("=== startTickTests() called! ===");
                     });
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
@@ -792,31 +795,28 @@ public class TestPlugin extends JavaPlugin {
     private void startTickTests() {
         LOGGER.at(Level.INFO).log("Starting tick tracking tests...");
         
-        // Test: Log EVERY tick
-        WorldHelper.onTick(world, currentTick -> {
-            WorldHelper.log(world, "[Test] Tick: " + currentTick);
-        });
-        
-        /* Interval tests - commented out for now
-        // Test 1: Log every second (20 ticks)
+        // Test: Check what player is looking at every second (20 ticks)
         WorldHelper.onTickInterval(world, 20, currentTick -> {
-            WorldHelper.log(world, "[Test] Tick: " + currentTick + " (1 second interval)");
+            if (WorldHelper.getPlayerCount(world) > 0) {
+                com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
+                
+                // Get what the player is looking at
+                org.hytaledevlib.lib.PlayerHelper.LookingAtResult result = 
+                    org.hytaledevlib.lib.PlayerHelper.getLookingAt(world, player, 5.0);
+                
+                if (result.hasBlock()) {
+                    String blockId = result.getBlockId();
+                    double distance = result.getDistance();
+                    com.hypixel.hytale.math.vector.Vector3i pos = result.getBlockPosition();
+                    
+                    WorldHelper.log(world, "[LookingAt] Block: " + blockId + 
+                                          " | Distance: " + String.format("%.2f", distance) + 
+                                          " | Pos: " + pos);
+                } else {
+                    WorldHelper.log(world, "[LookingAt] No block found (looking at air/sky)");
+                }
+            }
         });
-        
-        // Test 2: Log every 5 seconds (100 ticks)
-        WorldHelper.onTickInterval(world, 100, currentTick -> {
-            WorldHelper.logWarning(world, "[Test] Tick: " + currentTick + " (5 second interval)");
-        });
-        
-        // Test 3: Log every 10 seconds (200 ticks)
-        WorldHelper.onTickInterval(world, 200, currentTick -> {
-            WorldHelper.logError(world, "[Test] Tick: " + currentTick + " (10 second interval)");
-            
-            // Also test player count
-            int playerCount = WorldHelper.getPlayerCount(world);
-            WorldHelper.log(world, "[Test] Current player count: " + playerCount);
-        });
-        */
         
         LOGGER.at(Level.INFO).log("Tick tracking test registered successfully!");
         LOGGER.at(Level.INFO).log("Watch the logs - will log EVERY tick!");
