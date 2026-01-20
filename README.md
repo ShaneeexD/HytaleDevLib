@@ -8,6 +8,8 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Documentation
 
+**[Website & Documentation](https://htdevlib.netlify.app)**
+
 **[View Full Documentation on Wiki →](https://github.com/ShaneeexD/HytaleDevLib/wiki)**
 
 **[Mod on CurseForge →](https://www.curseforge.com/hytale/mods/htdevlib)**
