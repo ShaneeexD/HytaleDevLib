@@ -1133,18 +1133,28 @@ public class TestPlugin extends JavaPlugin {
                     com.hypixel.hytale.math.vector.Vector3i abovePos = new com.hypixel.hytale.math.vector.Vector3i(
                         position.getX(), position.getY() + 1, position.getZ()
                     );
+                    com.hypixel.hytale.math.vector.Vector3d explosionPos = new com.hypixel.hytale.math.vector.Vector3d(
+                        abovePos.getX() + 0.5, 
+                        abovePos.getY() + 0.5, 
+                        abovePos.getZ() + 0.5
+                    );
                     org.hytaledevlib.lib.ParticleHelper.spawnParticle(
                         world,
                         "Explosion_Medium",
-                        new com.hypixel.hytale.math.vector.Vector3d(
-                            abovePos.getX() + 0.5, 
-                            abovePos.getY() + 0.5, 
-                            abovePos.getZ() + 0.5
-                        ),
+                        explosionPos,
                         2.0f // Double size
                     );
                     
-                    LOGGER.at(Level.INFO).log("✨ Spawned particles for Se7enity breaking " + blockTypeId);
+                    // Play 3D impact sound at the same position (sounds like an explosion)
+                    org.hytaledevlib.lib.SoundHelper.playSound3D(
+                        world,
+                        "SFX_Golem_Earth_Slam_Impact",
+                        explosionPos,
+                        1.0f, // Normal volume
+                        1.0f  // Normal pitch
+                    );
+                    
+                    LOGGER.at(Level.INFO).log("✨ Spawned particles and sound for Se7enity breaking " + blockTypeId);
                 }
             }
         });
@@ -1156,6 +1166,9 @@ public class TestPlugin extends JavaPlugin {
         
         // Log all available particle system IDs
         logAvailableParticleSystems();
+        
+        // Log all available sound event IDs
+        logAvailableSoundEvents();
     }
     
     /**
@@ -1215,6 +1228,67 @@ public class TestPlugin extends JavaPlugin {
             LOGGER.at(Level.INFO).log("=================================");
         } catch (Exception e) {
             LOGGER.at(Level.WARNING).log("Failed to list particle systems: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Log all available sound event IDs from Hytale's asset registry.
+     */
+    private void logAvailableSoundEvents() {
+        try {
+            LOGGER.at(Level.INFO).log("=== Available Sound Events ===");
+            
+            // Get the SoundEvent asset map
+            var defaultAssetMap = com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent.getAssetMap();
+            
+            if (defaultAssetMap != null) {
+                // getAssetMap() returns an unmodifiable Map<K, T>
+                java.util.Map<String, com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent> assetMap = 
+                    defaultAssetMap.getAssetMap();
+                
+                int totalCount = assetMap.size();
+                LOGGER.at(Level.INFO).log("Found " + totalCount + " sound events:");
+                
+                // Write all sound event IDs to a file
+                java.util.List<String> soundIds = new java.util.ArrayList<>(assetMap.keySet());
+                java.util.Collections.sort(soundIds); // Sort alphabetically
+                
+                try {
+                    java.nio.file.Path outputPath = java.nio.file.Paths.get("SoundList.md");
+                    java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(outputPath);
+                    
+                    writer.write("# Hytale Sound Events\n\n");
+                    writer.write("Total sound events: " + totalCount + "\n\n");
+                    writer.write("## Available Sound Event IDs\n\n");
+                    
+                    for (String soundId : soundIds) {
+                        writer.write("- `" + soundId + "`\n");
+                    }
+                    
+                    writer.close();
+                    LOGGER.at(Level.INFO).log("✓ Exported " + totalCount + " sound events to SoundList.md");
+                } catch (java.io.IOException e) {
+                    LOGGER.at(Level.WARNING).log("Failed to write SoundList.md: " + e.getMessage());
+                }
+                
+                // Log first 50 to console
+                int count = 0;
+                for (String soundId : soundIds) {
+                    LOGGER.at(Level.INFO).log("  - " + soundId);
+                    count++;
+                    if (count >= 50) {
+                        LOGGER.at(Level.INFO).log("  ... and " + (totalCount - 50) + " more (see SoundList.md)");
+                        break;
+                    }
+                }
+            } else {
+                LOGGER.at(Level.WARNING).log("SoundEvent asset map is null!");
+            }
+            
+            LOGGER.at(Level.INFO).log("=================================");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Failed to list sound events: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -1474,6 +1548,16 @@ public class TestPlugin extends JavaPlugin {
                     if (success2) {
                         LOGGER.at(Level.INFO).log("✅ Se7enity switched back to ADVENTURE mode!");
                         org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You are now in ADVENTURE mode!");
+                        
+                        // Play 2D sound test - only this player hears it
+                        org.hytaledevlib.lib.SoundHelper.playSound2DToPlayer(
+                            world,
+                            "SFX_Axe_Special_Impact",
+                            player,
+                            1.0f, // Normal volume
+                            1.0f  // Normal pitch
+                        );
+                        LOGGER.at(Level.INFO).log("🔊 Played 2D sound to Se7enity");
                     } else {
                         LOGGER.at(Level.WARNING).log("❌ Failed to switch Se7enity back to ADVENTURE mode");
                     }

@@ -16,7 +16,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides 17 main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides 19 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting **with player entity access**
@@ -140,6 +140,22 @@ HytaleDevLib provides 17 main helper classes that simplify Hytale plugin develop
 - Track equipment changes for any `LivingEntity`
 - Armor, utility/offhand, and tools container tracking
 - Provides `EquipmentChange` with old/new items, slot info, and helpers (`isEquipping()`, `isUnequipping()`)
+
+### ParticleHelper
+- **Particle effect spawning** - Spawn 535+ particle systems at positions, blocks, or entities
+- **2D/3D particles** - Positional particles or screen-space effects
+- **Scale control** - Customize particle size (1.0 = normal, 2.0 = double)
+- **Temporary vs looping** - Auto-cleanup for temporary effects, persistent for ambient
+- **Player-specific particles** - Show particles to specific players only
+
+### SoundHelper
+- **Sound playback** - Play 1156+ sound events in 2D (UI) or 3D (positional)
+- **2D sounds** - UI sounds, notifications, global events (no position)
+- **3D sounds** - Positional audio with automatic distance attenuation
+- **Volume and pitch control** - Customize playback (1.0 = normal)
+- **Sound categories** - SFX, MUSIC, AMBIENT, VOICE, MASTER
+- **Player-specific audio** - Play sounds to specific players only
+
 
 ### ComponentHelper
 - Type-safe ECS component operations
