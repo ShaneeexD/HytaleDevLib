@@ -988,9 +988,10 @@ public class TestPlugin extends JavaPlugin {
                 " | Tool: " + tool);
         });
         
-        // Test onZoneDiscovery - ECS event (zone exploration)
-        org.hytaledevlib.lib.EcsEventHelper.onZoneDiscovery(world, (discoveryInfo) -> {
-            LOGGER.at(Level.INFO).log("[EcsEventTest] Zone discovered: " + discoveryInfo.zoneName());
+        // Test onZoneDiscovery - ECS event (zone exploration) with player entity
+        org.hytaledevlib.lib.EcsEventHelper.onZoneDiscovery(world, (discoveryInfo, playerEntity) -> {
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(playerEntity);
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Zone discovered by " + playerName + ": " + discoveryInfo.zoneName());
             LOGGER.at(Level.INFO).log("  Region: " + discoveryInfo.regionName());
             LOGGER.at(Level.INFO).log("  Major: " + discoveryInfo.major());
             if (discoveryInfo.icon() != null) {
@@ -998,9 +999,10 @@ public class TestPlugin extends JavaPlugin {
             }
         });
         
-        // Test onBlockInteract - ECS event (also handles existing container registration)
-        org.hytaledevlib.lib.EcsEventHelper.onBlockInteract(world, (position, blockTypeId) -> {
-            LOGGER.at(Level.INFO).log("[EcsEventTest] Block interacted: " + blockTypeId + " at " + position);
+        // Test onBlockInteract - ECS event (also handles existing container registration) with player entity
+        org.hytaledevlib.lib.EcsEventHelper.onBlockInteract(world, (position, blockTypeId, playerEntity) -> {
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(playerEntity);
+            LOGGER.at(Level.INFO).log("[EcsEventTest] Block interacted by " + playerName + ": " + blockTypeId + " at " + position);
             
             // Check if this is a container block and register it
             if (org.hytaledevlib.lib.ContainerHelper.isContainerType(blockTypeId)) {

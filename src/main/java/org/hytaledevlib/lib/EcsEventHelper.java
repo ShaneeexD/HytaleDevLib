@@ -453,6 +453,64 @@ public class EcsEventHelper {
     }
     
     /**
+     * Register a callback for when a player discovers a new zone (with player entity).
+     * 
+     * This creates and registers an ECS system to handle DiscoverZoneEvent.Display.
+     * This event fires when a player enters a new zone for the first time.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback BiConsumer that receives zone discovery information and player entity
+     */
+    public static void onZoneDiscovery(World world, BiConsumer<WorldMapTracker.ZoneDiscoveryInfo, Entity> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, DiscoverZoneEvent.Display> system = new EntityEventSystem<EntityStore, DiscoverZoneEvent.Display>(DiscoverZoneEvent.Display.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final DiscoverZoneEvent.Display event) {
+                    try {
+                        WorldMapTracker.ZoneDiscoveryInfo discoveryInfo = event.getDiscoveryInfo();
+                        
+                        // Get the player entity reference
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity playerEntity = world.getEntity(uuidComp.getUuid());
+                            callback.accept(discoveryInfo, playerEntity);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onZoneDiscovery callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onZoneDiscovery (with entity) ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onZoneDiscovery system: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Register a callback for when a player interacts with a block (right-click/F key).
      * 
      * This creates and registers an ECS system to handle UseBlockEvent.
@@ -498,6 +556,64 @@ public class EcsEventHelper {
             // Register the system with the entity store
             EntityStore.REGISTRY.registerSystem(system);
             LOGGER.atInfo().log("Registered onBlockInteract ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockInteract system: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Register a callback for when a player interacts with a block (with player entity).
+     * 
+     * This creates and registers an ECS system to handle UseBlockEvent.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback TriConsumer that receives the block position, block type ID, and player entity
+     */
+    public static void onBlockInteract(World world, TriConsumer<Vector3i, String, Entity> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, UseBlockEvent.Post> system = new EntityEventSystem<EntityStore, UseBlockEvent.Post>(UseBlockEvent.Post.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final UseBlockEvent.Post event) {
+                    try {
+                        Vector3i position = event.getTargetBlock();
+                        String blockTypeId = event.getBlockType().getId();
+                        
+                        // Get the player entity reference
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity playerEntity = world.getEntity(uuidComp.getUuid());
+                            callback.accept(position, blockTypeId, playerEntity);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockInteract callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockInteract (with entity) ECS system");
             
         } catch (Exception e) {
             LOGGER.atWarning().log("Failed to register onBlockInteract system: " + e.getMessage());
