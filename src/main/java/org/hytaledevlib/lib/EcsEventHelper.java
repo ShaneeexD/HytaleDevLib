@@ -917,4 +917,282 @@ public class EcsEventHelper {
             return null;
         }
     }
+    
+    // ==================== Game Mode Change Event ====================
+    
+    /**
+     * Register a callback for when a player's game mode changes.
+     * This event is cancellable - you can prevent the game mode change.
+     * 
+     * @param world The world to register the system in
+     * @param callback BiConsumer that receives the player entity and the new GameMode
+     */
+    public static void onGameModeChange(World world, BiConsumer<Entity, com.hypixel.hytale.protocol.GameMode> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.event.events.ecs.ChangeGameModeEvent> system = 
+                new EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.event.events.ecs.ChangeGameModeEvent>(
+                    com.hypixel.hytale.server.core.event.events.ecs.ChangeGameModeEvent.class) {
+                
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final com.hypixel.hytale.server.core.event.events.ecs.ChangeGameModeEvent event) {
+                    try {
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity entity = world.getEntity(uuidComp.getUuid());
+                            com.hypixel.hytale.protocol.GameMode newGameMode = event.getGameMode();
+                            callback.accept(entity, newGameMode);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onGameModeChange callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onGameModeChange ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atSevere().log("Failed to register onGameModeChange system: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // ==================== Hotbar Slot Switch Event ====================
+    
+    /**
+     * Register a callback for when a player switches their active hotbar slot.
+     * This event is cancellable - you can prevent the slot switch.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives the player entity, previous slot, and new slot
+     */
+    public static void onHotbarSwitch(World world, TriConsumer<Entity, Integer, Integer> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.event.events.ecs.SwitchActiveSlotEvent> system = 
+                new EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.event.events.ecs.SwitchActiveSlotEvent>(
+                    com.hypixel.hytale.server.core.event.events.ecs.SwitchActiveSlotEvent.class) {
+                
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final com.hypixel.hytale.server.core.event.events.ecs.SwitchActiveSlotEvent event) {
+                    try {
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        if (uuidComp != null) {
+                            Entity entity = world.getEntity(uuidComp.getUuid());
+                            int previousSlot = event.getPreviousSlot();
+                            int newSlot = event.getNewSlot();
+                            callback.accept(entity, previousSlot, newSlot);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onHotbarSwitch callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onHotbarSwitch ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atSevere().log("Failed to register onHotbarSwitch system: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // ==================== Moon Phase Change Event ====================
+    
+    /**
+     * Register a callback for when the moon phase changes in the world.
+     * Moon phases are represented as integers (0-7 typically).
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives the new moon phase
+     */
+    public static void onMoonPhaseChange(World world, java.util.function.IntConsumer callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.MoonPhaseChangeEvent> system = 
+                new EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.MoonPhaseChangeEvent>(
+                    com.hypixel.hytale.server.core.universe.world.events.ecs.MoonPhaseChangeEvent.class) {
+                
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final com.hypixel.hytale.server.core.universe.world.events.ecs.MoonPhaseChangeEvent event) {
+                    try {
+                        int newMoonPhase = event.getNewMoonPhase();
+                        callback.accept(newMoonPhase);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onMoonPhaseChange callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return null; // World event, no specific entity query
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onMoonPhaseChange ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atSevere().log("Failed to register onMoonPhaseChange system: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // ==================== Chunk Save Event ====================
+    
+    /**
+     * Register a callback for when a chunk is about to be saved.
+     * This event is cancellable - you can prevent the chunk from being saved.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives the chunk position (as long)
+     */
+    public static void onChunkSave(World world, java.util.function.LongConsumer callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent> system = 
+                new EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent>(
+                    com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent.class) {
+                
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkSaveEvent event) {
+                    try {
+                        com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk chunk = event.getChunk();
+                        long chunkIndex = chunk.getIndex();
+                        callback.accept(chunkIndex);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onChunkSave callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return null; // Chunk event, no specific entity query
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onChunkSave ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atSevere().log("Failed to register onChunkSave system: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // ==================== Chunk Unload Event ====================
+    
+    /**
+     * Register a callback for when a chunk is about to be unloaded.
+     * This event is cancellable - you can prevent the chunk from being unloaded.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives the chunk position (as long)
+     */
+    public static void onChunkUnload(World world, java.util.function.LongConsumer callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            Store<EntityStore> store = entityStore.getStore();
+            
+            EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent> system = 
+                new EntityEventSystem<EntityStore, com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent>(
+                    com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent.class) {
+                
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final com.hypixel.hytale.server.core.universe.world.events.ecs.ChunkUnloadEvent event) {
+                    try {
+                        com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk chunk = event.getChunk();
+                        long chunkIndex = chunk.getIndex();
+                        callback.accept(chunkIndex);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onChunkUnload callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return null; // Chunk event, no specific entity query
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onChunkUnload ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atSevere().log("Failed to register onChunkUnload system: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

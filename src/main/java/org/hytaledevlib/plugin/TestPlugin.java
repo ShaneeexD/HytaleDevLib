@@ -44,6 +44,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register ECS event helpers (must be done after we have a world)
                     registerEcsEventTests(world);
                     
+                    // Register ParticleHelper test
+                    registerParticleHelperTest(world);
+                    
                     // Register LootHelper test
                     //registerLootHelperTest(world);
                     
@@ -799,31 +802,9 @@ public class TestPlugin extends JavaPlugin {
     private void startTickTests() {
         LOGGER.at(Level.INFO).log("Starting tick tracking tests...");
         
-        // Test: Check what player is looking at every second (20 ticks)
-        WorldHelper.onTickInterval(world, 20, currentTick -> {
-            if (WorldHelper.getPlayerCount(world) > 0) {
-                com.hypixel.hytale.server.core.entity.Entity player = world.getPlayers().iterator().next();
-                
-                // Get what the player is looking at
-                org.hytaledevlib.lib.PlayerHelper.LookingAtResult result = 
-                    org.hytaledevlib.lib.PlayerHelper.getLookingAt(world, player, 5.0);
-                
-                if (result.hasBlock()) {
-                    String blockId = result.getBlockId();
-                    double distance = result.getDistance();
-                    com.hypixel.hytale.math.vector.Vector3i pos = result.getBlockPosition();
-                    
-                    WorldHelper.log(world, "[LookingAt] Block: " + blockId + 
-                                          " | Distance: " + String.format("%.2f", distance) + 
-                                          " | Pos: " + pos);
-                } else {
-                    WorldHelper.log(world, "[LookingAt] No block found (looking at air/sky)");
-                }
-            }
-        });
+        // Disabled tick-based cooldown override - doesn't work effectively
         
         LOGGER.at(Level.INFO).log("Tick tracking test registered successfully!");
-        LOGGER.at(Level.INFO).log("Watch the logs - will log EVERY tick!");
     }
     
     /**
@@ -992,22 +973,35 @@ public class TestPlugin extends JavaPlugin {
                 " | Tool: " + tool);
         });
         
-        // Test onBlockDamage with context - Mining speed multiplier test with gather type filtering
+        // Test onBlockDamage - Combined mining speed multiplier and cooldown modification
         org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (context) -> {
-            // TEST: Pickaxe works 2x faster on "Rocks" gather type
             String gatherType = context.getGatherType();
             String tool = context.getItemInHand();
             
+            // Safety check for player entity
+            if (context.getPlayerEntity() == null) {
+                return;
+            }
+            
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(context.getPlayerEntity());
+            
+            LOGGER.at(Level.INFO).log("🔨 onBlockDamage fired! Player: " + playerName + ", Tool: " + tool + ", GatherType: " + gatherType);
+            
+            // TEST 1: Pickaxe works faster on "Rocks" - use high damage multiplier
             if ("Tool_Pickaxe_Crude".equals(tool) && "Rocks".equals(gatherType)) {
-                context.setMiningSpeedMultiplier(2.0f);
+                // Use very high damage multiplier so blocks break in 1-2 hits
+                context.setMiningSpeedMultiplier(5.0f);
                 
-                String playerName = context.getPlayerEntity() != null ? 
-                    org.hytaledevlib.lib.EntityHelper.getName(context.getPlayerEntity()) : "Unknown";
+                LOGGER.at(Level.INFO).log("⚡ SUPER PICKAXE! Player " + playerName + " mining " + context.getBlockTypeId());
+                LOGGER.at(Level.INFO).log("   5x damage multiplier - blocks break in 1-2 hits!");
+            }
+            
+            // TEST 2: Axe works faster on wood
+            if ("Tool_Axe_Crude".equals(tool) && "Wood".equals(gatherType)) {
+                context.setMiningSpeedMultiplier(3.0f);
                 
-                LOGGER.at(Level.INFO).log("⚡ PICKAXE EFFICIENCY! Player " + playerName + " mining " + context.getBlockTypeId());
-                LOGGER.at(Level.INFO).log("   Gather Type: " + gatherType + " | Tool: " + tool);
-                LOGGER.at(Level.INFO).log("   Block Health: " + String.format("%.2f", context.getBlockHealth()) + 
-                    " | Applied 2x multiplier for Rocks");
+                LOGGER.at(Level.INFO).log("🪓 FAST AXE! Player " + playerName + " chopping " + context.getBlockTypeId());
+                LOGGER.at(Level.INFO).log("   3x damage multiplier for wood!");
             }
         });
         
@@ -1071,12 +1065,158 @@ public class TestPlugin extends JavaPlugin {
             }
         });
         
+        // Test onGameModeChange - Log when players change game modes
+        org.hytaledevlib.lib.EcsEventHelper.onGameModeChange(world, (entity, gameMode) -> {
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(entity);
+            LOGGER.at(Level.INFO).log("[EcsEventTest] 🎮 " + playerName + " changed to " + gameMode + " mode");
+        });
+        
+        // Test onHotbarSwitch - Log when players switch hotbar slots
+        org.hytaledevlib.lib.EcsEventHelper.onHotbarSwitch(world, (entity, previousSlot, newSlot) -> {
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(entity);
+            LOGGER.at(Level.INFO).log("[EcsEventTest] 🎯 " + playerName + " switched from slot " + previousSlot + " to slot " + newSlot);
+        });
+        
+        // Test onMoonPhaseChange - Log moon phase changes
+        org.hytaledevlib.lib.EcsEventHelper.onMoonPhaseChange(world, (moonPhase) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] 🌙 Moon phase changed to: " + moonPhase);
+        });
+        
+        // Test onChunkSave - Log chunk saves
+        org.hytaledevlib.lib.EcsEventHelper.onChunkSave(world, (chunkIndex) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] 💾 Chunk saved: " + chunkIndex);
+        });
+        
+        // Test onChunkUnload - Log chunk unloads
+        org.hytaledevlib.lib.EcsEventHelper.onChunkUnload(world, (chunkIndex) -> {
+            LOGGER.at(Level.INFO).log("[EcsEventTest] 📤 Chunk unloaded: " + chunkIndex);
+        });
+        
         LOGGER.at(Level.INFO).log("ECS EventHelper tests registered!");
         LOGGER.at(Level.INFO).log("  ✓ Block breaking (filters out Empty blocks)");
         LOGGER.at(Level.INFO).log("  ✓ Block placing");
         LOGGER.at(Level.INFO).log("  ✓ Block damage (mining progress tracking)");
         LOGGER.at(Level.INFO).log("  ✓ Zone discovery (map exploration)");
         LOGGER.at(Level.INFO).log("  ✓ Block interaction (existing container registration)");
+        LOGGER.at(Level.INFO).log("  ✓ Game mode changes");
+        LOGGER.at(Level.INFO).log("  ✓ Hotbar slot switching");
+        LOGGER.at(Level.INFO).log("  ✓ Moon phase changes");
+        LOGGER.at(Level.INFO).log("  ✓ Chunk save/unload");
+    }
+    
+    /**
+     * Register ParticleHelper test - spawns particles at Se7enity's feet when breaking blocks.
+     */
+    private void registerParticleHelperTest(World world) {
+        LOGGER.at(Level.INFO).log("Registering ParticleHelper test...");
+        
+        // Spawn particles at Se7enity's feet when they break a block
+        org.hytaledevlib.lib.EcsEventHelper.onBlockBreak(world, (position, blockTypeId, playerEntity) -> {
+            if (playerEntity != null) {
+                String playerName = org.hytaledevlib.lib.EntityHelper.getName(playerEntity);
+                if ("Se7enity".equals(playerName)) {
+                    // Spawn impact particles at player's feet (temporary effect)
+                    org.hytaledevlib.lib.ParticleHelper.spawnParticleAtEntityFeet(
+                        world, 
+                        "Impact_Fire", 
+                        playerEntity
+                    );
+                    
+                    // Spawn sparkle dust at the broken block position
+                    org.hytaledevlib.lib.ParticleHelper.spawnParticleAtBlock(
+                        world,
+                        "Dust_Sparkles",
+                        position
+                    );
+                    
+                    // Spawn a large explosion particle above the block
+                    com.hypixel.hytale.math.vector.Vector3i abovePos = new com.hypixel.hytale.math.vector.Vector3i(
+                        position.getX(), position.getY() + 1, position.getZ()
+                    );
+                    org.hytaledevlib.lib.ParticleHelper.spawnParticle(
+                        world,
+                        "Explosion_Medium",
+                        new com.hypixel.hytale.math.vector.Vector3d(
+                            abovePos.getX() + 0.5, 
+                            abovePos.getY() + 0.5, 
+                            abovePos.getZ() + 0.5
+                        ),
+                        2.0f // Double size
+                    );
+                    
+                    LOGGER.at(Level.INFO).log("✨ Spawned particles for Se7enity breaking " + blockTypeId);
+                }
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("ParticleHelper test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Sparkle particles spawn at Se7enity's feet when breaking blocks");
+        LOGGER.at(Level.INFO).log("  ✓ Particles at broken block position");
+        LOGGER.at(Level.INFO).log("  ✓ Large particles (2x scale) above broken block");
+        
+        // Log all available particle system IDs
+        logAvailableParticleSystems();
+    }
+    
+    /**
+     * Log all available particle system IDs from Hytale's asset registry.
+     */
+    private void logAvailableParticleSystems() {
+        try {
+            LOGGER.at(Level.INFO).log("=== Available Particle Systems ===");
+            
+            // Get the ParticleSystem asset map - getAssetMap() returns the internal Map
+            var defaultAssetMap = com.hypixel.hytale.server.core.asset.type.particle.config.ParticleSystem.getAssetMap();
+            
+            if (defaultAssetMap != null) {
+                // getAssetMap() returns an unmodifiable Map<K, T>
+                java.util.Map<String, com.hypixel.hytale.server.core.asset.type.particle.config.ParticleSystem> assetMap = 
+                    defaultAssetMap.getAssetMap();
+                
+                int totalCount = assetMap.size();
+                LOGGER.at(Level.INFO).log("Found " + totalCount + " particle systems:");
+                
+                // Write all particle IDs to a file
+                java.util.List<String> particleIds = new java.util.ArrayList<>(assetMap.keySet());
+                java.util.Collections.sort(particleIds); // Sort alphabetically
+                
+                try {
+                    java.nio.file.Path outputPath = java.nio.file.Paths.get("ParticleList.md");
+                    java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(outputPath);
+                    
+                    writer.write("# Hytale Particle Systems\n\n");
+                    writer.write("Total particle systems: " + totalCount + "\n\n");
+                    writer.write("## Available Particle IDs\n\n");
+                    
+                    for (String particleId : particleIds) {
+                        writer.write("- `" + particleId + "`\n");
+                    }
+                    
+                    writer.close();
+                    LOGGER.at(Level.INFO).log("✓ Exported " + totalCount + " particle systems to ParticleList.md");
+                } catch (java.io.IOException e) {
+                    LOGGER.at(Level.WARNING).log("Failed to write ParticleList.md: " + e.getMessage());
+                }
+                
+                // Log first 50 to console
+                int count = 0;
+                for (String particleId : particleIds) {
+                    LOGGER.at(Level.INFO).log("  - " + particleId);
+                    count++;
+                    if (count >= 50) {
+                        LOGGER.at(Level.INFO).log("  ... and " + (totalCount - 50) + " more (see ParticleList.md)");
+                        break;
+                    }
+                }
+            } else {
+                LOGGER.at(Level.WARNING).log("ParticleSystem asset map is null!");
+            }
+            
+            LOGGER.at(Level.INFO).log("=================================");
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Failed to list particle systems: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     /**
