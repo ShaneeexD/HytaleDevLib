@@ -21,7 +21,14 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.WorldMapTracker;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.modules.blockhealth.BlockHealthChunk;
+import com.hypixel.hytale.server.core.modules.blockhealth.BlockHealthModule;
+import com.hypixel.hytale.server.core.modules.time.TimeResource;
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.math.util.ChunkUtil;
+import java.time.Instant;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -401,6 +408,75 @@ public class EcsEventHelper {
     }
     
     /**
+     * Register a callback for when a player damages a block (with write access to block health).
+     * 
+     * This creates and registers an ECS system to handle DamageBlockEvent.
+     * Provides a BlockDamageContext that allows modifying the block's health/damage.
+     * Must be called after you have a World instance.
+     * 
+     * @param world The world to register the system in
+     * @param callback Consumer that receives a BlockDamageContext with read/write access
+     */
+    public static void onBlockDamage(World world, java.util.function.Consumer<BlockDamageContext> callback) {
+        try {
+            EntityStore entityStore = world.getEntityStore();
+            
+            // Create a custom ECS system for this callback
+            EntityEventSystem<EntityStore, DamageBlockEvent> system = new EntityEventSystem<EntityStore, DamageBlockEvent>(DamageBlockEvent.class) {
+                @Override
+                public void handle(final int index, @Nonnull final ArchetypeChunk<EntityStore> archetypeChunk,
+                                   @Nonnull final Store<EntityStore> store,
+                                   @Nonnull final CommandBuffer<EntityStore> commandBuffer,
+                                   @Nonnull final DamageBlockEvent event) {
+                    try {
+                        // Get the player entity reference
+                        com.hypixel.hytale.component.Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
+                        UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+                        Entity playerEntity = null;
+                        if (uuidComp != null) {
+                            playerEntity = world.getEntity(uuidComp.getUuid());
+                        }
+                        
+                        // Create context with write access
+                        BlockDamageContext context = new BlockDamageContext(
+                            world,
+                            event.getTargetBlock(),
+                            event.getBlockType().getId(),
+                            event.getCurrentDamage(),
+                            event.getDamage(),
+                            event.getItemInHand() != null ? event.getItemInHand().getItemId() : null,
+                            playerEntity
+                        );
+                        
+                        callback.accept(context);
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Error in onBlockDamage callback: " + e.getMessage());
+                    }
+                }
+                
+                @Nullable
+                @Override
+                public Query<EntityStore> getQuery() {
+                    return PlayerRef.getComponentType();
+                }
+                
+                @Nonnull
+                @Override
+                public Set<Dependency<EntityStore>> getDependencies() {
+                    return Collections.singleton(RootDependency.first());
+                }
+            };
+            
+            // Register the system with the entity store
+            EntityStore.REGISTRY.registerSystem(system);
+            LOGGER.atInfo().log("Registered onBlockDamage (with context) ECS system");
+            
+        } catch (Exception e) {
+            LOGGER.atWarning().log("Failed to register onBlockDamage system: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Register a callback for when a player discovers a new zone.
      * 
      * This creates and registers an ECS system to handle DiscoverZoneEvent.Display.
@@ -669,5 +745,143 @@ public class EcsEventHelper {
          * @param discoveryInfo The zone discovery information containing zone name, region, display settings, etc.
          */
         void accept(WorldMapTracker.ZoneDiscoveryInfo discoveryInfo);
+    }
+    
+    /**
+     * Context object for block damage events with read/write access to block health.
+     * Allows modifying the block's health, applying extra damage, or repairing blocks.
+     */
+    public static class BlockDamageContext {
+        private final World world;
+        private final Vector3i position;
+        private final String blockTypeId;
+        private final float currentDamage;
+        private final float damage;
+        private final String itemInHand;
+        private final Entity playerEntity;
+        
+        private BlockDamageContext(World world, Vector3i position, String blockTypeId, 
+                                   float currentDamage, float damage, String itemInHand, Entity playerEntity) {
+            this.world = world;
+            this.position = position;
+            this.blockTypeId = blockTypeId;
+            this.currentDamage = currentDamage;
+            this.damage = damage;
+            this.itemInHand = itemInHand;
+            this.playerEntity = playerEntity;
+        }
+        
+        public Vector3i getPosition() { return position; }
+        public String getBlockTypeId() { return blockTypeId; }
+        public float getCurrentDamage() { return currentDamage; }
+        public float getDamage() { return damage; }
+        public String getItemInHand() { return itemInHand; }
+        public Entity getPlayerEntity() { return playerEntity; }
+        public World getWorld() { return world; }
+        
+        /**
+         * Get the current health of the block (0.0 = destroyed, 1.0 = full health).
+         * @return Current block health, or 1.0 if block has no damage
+         */
+        public float getBlockHealth() {
+            try {
+                BlockHealthChunk healthChunk = getBlockHealthChunk();
+                if (healthChunk != null) {
+                    return healthChunk.getBlockHealth(position);
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to get block health: " + e.getMessage());
+            }
+            return 1.0f;
+        }
+        
+        /**
+         * Set the block's health directly (0.0 = destroyed, 1.0 = full health).
+         * @param health New health value (0.0 to 1.0)
+         */
+        public void setBlockHealth(float health) {
+            try {
+                BlockHealthChunk healthChunk = getBlockHealthChunk();
+                if (healthChunk != null) {
+                    float currentHealth = healthChunk.getBlockHealth(position);
+                    float delta = health - currentHealth;
+                    
+                    if (delta < 0) {
+                        // Damaging the block
+                        TimeResource uptime = world.getEntityStore().getStore().getResource(TimeResource.getResourceType());
+                        healthChunk.damageBlock(uptime.getNow(), world, position, -delta);
+                    } else if (delta > 0) {
+                        // Repairing the block
+                        healthChunk.repairBlock(world, position, delta);
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to set block health: " + e.getMessage());
+            }
+        }
+        
+        /**
+         * Apply additional damage to the block.
+         * @param extraDamage Amount of damage to apply (reduces health)
+         */
+        public void applyDamage(float extraDamage) {
+            try {
+                BlockHealthChunk healthChunk = getBlockHealthChunk();
+                if (healthChunk != null) {
+                    TimeResource uptime = world.getEntityStore().getStore().getResource(TimeResource.getResourceType());
+                    healthChunk.damageBlock(uptime.getNow(), world, position, extraDamage);
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to apply damage: " + e.getMessage());
+            }
+        }
+        
+        /**
+         * Repair the block by a certain amount.
+         * @param repairAmount Amount to repair (increases health)
+         */
+        public void repairBlock(float repairAmount) {
+            try {
+                BlockHealthChunk healthChunk = getBlockHealthChunk();
+                if (healthChunk != null) {
+                    healthChunk.repairBlock(world, position, repairAmount);
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to repair block: " + e.getMessage());
+            }
+        }
+        
+        /**
+         * Multiply the mining speed by applying extra damage.
+         * For example, multiplier of 2.0 makes the block break 2x faster.
+         * @param multiplier Speed multiplier (2.0 = 2x faster, 0.5 = 2x slower)
+         */
+        public void setMiningSpeedMultiplier(float multiplier) {
+            if (multiplier <= 0) return;
+            
+            // Calculate extra damage needed to achieve the multiplier
+            // If multiplier is 2.0, we need to apply 2x the normal damage
+            float extraDamage = damage * (multiplier - 1.0f);
+            if (extraDamage > 0) {
+                applyDamage(extraDamage);
+            }
+        }
+        
+        private BlockHealthChunk getBlockHealthChunk() {
+            try {
+                ChunkStore chunkStore = world.getChunkStore();
+                long chunkIndex = ChunkUtil.indexChunkFromBlock(position.x, position.z);
+                Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkIndex);
+                
+                if (chunkRef != null) {
+                    ComponentType<ChunkStore, BlockHealthChunk> healthType = 
+                        BlockHealthModule.get().getBlockHealthChunkComponentType();
+                    return chunkStore.getStore().getComponent(chunkRef, healthType);
+                }
+            } catch (Exception e) {
+                LOGGER.atWarning().log("Failed to get BlockHealthChunk: " + e.getMessage());
+            }
+            return null;
+        }
     }
 }

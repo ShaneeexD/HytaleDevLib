@@ -988,6 +988,21 @@ public class TestPlugin extends JavaPlugin {
                 " | Tool: " + tool);
         });
         
+        // Test onBlockDamage with context - Mining speed multiplier test
+        org.hytaledevlib.lib.EcsEventHelper.onBlockDamage(world, (context) -> {
+            // TEST: Rock_Stone mined with Tool_Pickaxe_Crude gets 2x mining speed
+            if ("Rock_Stone".equals(context.getBlockTypeId()) && "Tool_Pickaxe_Crude".equals(context.getItemInHand())) {
+                context.setMiningSpeedMultiplier(2.0f);
+                
+                String playerName = context.getPlayerEntity() != null ? 
+                    org.hytaledevlib.lib.EntityHelper.getName(context.getPlayerEntity()) : "Unknown";
+                
+                LOGGER.at(Level.INFO).log("⚡ MINING SPEED BOOST! Player " + playerName + " mining Rock_Stone with Tool_Pickaxe_Crude");
+                LOGGER.at(Level.INFO).log("   Block Health: " + String.format("%.2f", context.getBlockHealth()) + 
+                    " | Applied 2x multiplier");
+            }
+        });
+        
         // Test onZoneDiscovery - ECS event (zone exploration) with player entity
         org.hytaledevlib.lib.EcsEventHelper.onZoneDiscovery(world, (discoveryInfo, playerEntity) -> {
             String playerName = org.hytaledevlib.lib.EntityHelper.getName(playerEntity);

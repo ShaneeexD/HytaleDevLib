@@ -487,9 +487,6 @@ public class ContainerHelper {
                 return;
             }
             
-            LOGGER.atInfo().log("[DEBUG] Attempting to revert transaction: " + trans.getClass().getSimpleName());
-            LOGGER.atInfo().log("[DEBUG] Transaction string: " + trans.toString());
-            
             // Set flag to prevent infinite loop
             isReverting.set(true);
             
@@ -506,8 +503,6 @@ public class ContainerHelper {
                     Object removeTransaction = getRemoveTransaction.invoke(trans);
                     Object addTransaction = getAddTransaction.invoke(trans);
                     
-                    LOGGER.atInfo().log("[DEBUG] MoveType: " + moveTypeStr);
-                    
                     if ("MOVE_FROM_SELF".equals(moveTypeStr)) {
                         // Item was removed from container - restore it to chest AND remove from player inventory
                         if (removeTransaction != null && addTransaction != null) {
@@ -517,8 +512,6 @@ public class ContainerHelper {
                             
                             int chestSlot = ((Short)getSlot.invoke(removeTransaction)).intValue();
                             Object slotBefore = getSlotBefore.invoke(removeTransaction);
-                            
-                            LOGGER.atInfo().log("[DEBUG] Restoring item to chest slot " + chestSlot);
                             
                             if (slotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                 container.setItemStackForSlot((short)chestSlot, (com.hypixel.hytale.server.core.inventory.ItemStack)slotBefore);
@@ -540,8 +533,6 @@ public class ContainerHelper {
                                         int playerSlot = ((Short)getAddSlot.invoke(addTransaction)).intValue();
                                         Object playerSlotBefore = getAddSlotBefore.invoke(addTransaction);
                                         
-                                        LOGGER.atInfo().log("[DEBUG] Removing item from player inventory slot " + playerSlot);
-                                        
                                         // Restore player inventory slot to its previous state (usually null)
                                         if (playerSlotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                             playerInventory.setItemStackForSlot((short)playerSlot, (com.hypixel.hytale.server.core.inventory.ItemStack)playerSlotBefore);
@@ -549,10 +540,8 @@ public class ContainerHelper {
                                             playerInventory.setItemStackForSlot((short)playerSlot, null);
                                         }
                                         
-                                        LOGGER.atInfo().log("✅ Reverted REMOVE transaction - restored chest and player inventory");
                                     } catch (NoSuchMethodException e) {
                                         // This is ItemStackTransaction (shift-click) - handle slotTransactions list
-                                        LOGGER.atInfo().log("[DEBUG] Handling ItemStackTransaction (shift-click from chest)");
                                         try {
                                             java.lang.reflect.Method getSlotTransactions = addTransaction.getClass().getMethod("getSlotTransactions");
                                             Object slotTransactionsObj = getSlotTransactions.invoke(addTransaction);
@@ -575,26 +564,23 @@ public class ContainerHelper {
                                                         int playerSlot = ((Short)getSlotMethod.invoke(slotTrans)).intValue();
                                                         Object playerSlotBefore = getSlotBeforeMethod.invoke(slotTrans);
                                                         
-                                                        LOGGER.atInfo().log("[DEBUG] Reverting shift-click player inventory slot " + playerSlot);
-                                                        
                                                         if (playerSlotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                                             playerInventory.setItemStackForSlot((short)playerSlot, (com.hypixel.hytale.server.core.inventory.ItemStack)playerSlotBefore);
                                                         } else {
                                                             playerInventory.setItemStackForSlot((short)playerSlot, null);
                                                         }
                                                     } catch (Exception ex) {
-                                                        LOGGER.atWarning().log("[DEBUG] Failed to revert player slot transaction: " + ex.getMessage());
+                                                        // Silently continue on individual slot failure
                                                     }
                                                 }
-                                                LOGGER.atInfo().log("✅ Reverted shift-click REMOVE transaction - restored chest and player inventory");
                                             }
                                         } catch (Exception ex) {
-                                            LOGGER.atWarning().log("[DEBUG] Failed to handle ItemStackTransaction: " + ex.getMessage());
+                                            LOGGER.atWarning().log("Failed to handle ItemStackTransaction: " + ex.getMessage());
                                         }
                                     }
                                 }
                             } catch (Exception e) {
-                                LOGGER.atWarning().log("[DEBUG] Could not access otherContainer: " + e.getMessage());
+                                LOGGER.atWarning().log("Could not access otherContainer: " + e.getMessage());
                             }
                         }
                         return;
@@ -608,8 +594,6 @@ public class ContainerHelper {
                                 
                                 int chestSlot = ((Short)getSlot.invoke(addTransaction)).intValue();
                                 Object chestSlotBefore = getSlotBefore.invoke(addTransaction);
-                                
-                                LOGGER.atInfo().log("[DEBUG] Restoring chest slot " + chestSlot + " to previous state");
                                 
                                 // Step 1: Restore chest slot
                                 if (chestSlotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
@@ -632,23 +616,19 @@ public class ContainerHelper {
                                         int playerSlot = ((Short)getRemoveSlot.invoke(removeTransaction)).intValue();
                                         Object playerSlotBefore = getRemoveSlotBefore.invoke(removeTransaction);
                                         
-                                        LOGGER.atInfo().log("[DEBUG] Restoring player inventory slot " + playerSlot);
-                                        
                                         if (playerSlotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                             playerInventory.setItemStackForSlot((short)playerSlot, (com.hypixel.hytale.server.core.inventory.ItemStack)playerSlotBefore);
                                         } else {
                                             playerInventory.setItemStackForSlot((short)playerSlot, null);
                                         }
                                         
-                                        LOGGER.atInfo().log("✅ Reverted ADD transaction - restored chest and player inventory");
                                     }
                                 } catch (Exception ex) {
-                                    LOGGER.atWarning().log("[DEBUG] Could not access otherContainer: " + ex.getMessage());
+                                    LOGGER.atWarning().log("Could not access otherContainer: " + ex.getMessage());
                                 }
                                 return;
                             } catch (NoSuchMethodException e) {
                                 // This is ItemStackTransaction (shift-click) - handle slotTransactions list
-                                LOGGER.atInfo().log("[DEBUG] Handling ItemStackTransaction (shift-click)");
                                 try {
                                     java.lang.reflect.Method getSlotTransactions = addTransaction.getClass().getMethod("getSlotTransactions");
                                     Object slotTransactionsObj = getSlotTransactions.invoke(addTransaction);
@@ -671,15 +651,13 @@ public class ContainerHelper {
                                                 int slot = ((Short)getSlot.invoke(slotTrans)).intValue();
                                                 Object slotBefore = getSlotBefore.invoke(slotTrans);
                                                 
-                                                LOGGER.atInfo().log("[DEBUG] Reverting shift-click chest slot " + slot);
-                                                
                                                 if (slotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                                     container.setItemStackForSlot((short)slot, (com.hypixel.hytale.server.core.inventory.ItemStack)slotBefore);
                                                 } else {
                                                     container.setItemStackForSlot((short)slot, null);
                                                 }
                                             } catch (Exception ex) {
-                                                LOGGER.atWarning().log("[DEBUG] Failed to revert slot transaction: " + ex.getMessage());
+                                                // Silently continue on individual slot failure
                                             }
                                         }
                                         
@@ -697,8 +675,6 @@ public class ContainerHelper {
                                                 int playerSlot = ((Short)getRemoveSlot.invoke(removeTransaction)).intValue();
                                                 Object playerSlotBefore = getRemoveSlotBefore.invoke(removeTransaction);
                                                 
-                                                LOGGER.atInfo().log("[DEBUG] Restoring player inventory slot " + playerSlot + " (shift-click)");
-                                                
                                                 if (playerSlotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                                                     playerInventory.setItemStackForSlot((short)playerSlot, (com.hypixel.hytale.server.core.inventory.ItemStack)playerSlotBefore);
                                                 } else {
@@ -706,13 +682,12 @@ public class ContainerHelper {
                                                 }
                                             }
                                         } catch (Exception ex2) {
-                                            LOGGER.atWarning().log("[DEBUG] Could not restore player inventory: " + ex2.getMessage());
+                                            LOGGER.atWarning().log("Could not restore player inventory: " + ex2.getMessage());
                                         }
                                         
-                                        LOGGER.atInfo().log("✅ Reverted shift-click ADD transaction");
                                     }
                                 } catch (Exception ex) {
-                                    LOGGER.atWarning().log("[DEBUG] Failed to handle ItemStackTransaction: " + ex.getMessage());
+                                    LOGGER.atWarning().log("Failed to handle ItemStackTransaction: " + ex.getMessage());
                                 }
                             }
                         }
@@ -728,16 +703,13 @@ public class ContainerHelper {
                     int slot = ((Short)getSlot.invoke(trans)).intValue();
                     Object slotBefore = getSlotBefore.invoke(trans);
                     
-                    LOGGER.atInfo().log("[DEBUG] Simple transaction - restoring slot " + slot);
-                    
                     if (slotBefore instanceof com.hypixel.hytale.server.core.inventory.ItemStack) {
                         container.setItemStackForSlot((short)slot, (com.hypixel.hytale.server.core.inventory.ItemStack)slotBefore);
                     } else {
                         container.setItemStackForSlot((short)slot, null);
                     }
-                    LOGGER.atInfo().log("✅ Reverted simple transaction at slot " + slot);
                 } catch (NoSuchMethodException e) {
-                    LOGGER.atWarning().log("[DEBUG] Not a simple slot transaction: " + e.getMessage());
+                    // Not a simple slot transaction, that's okay
                 }
                 
             } catch (NoSuchMethodException | IllegalAccessException | java.lang.reflect.InvocationTargetException e) {
