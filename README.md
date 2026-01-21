@@ -16,7 +16,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides 19 main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides 20 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting **with player entity access**
@@ -101,6 +101,9 @@ HytaleDevLib provides 19 main helper classes that simplify Hytale plugin develop
 - **Random slot placement** - Fill containers with items in random slots for natural loot
 - **Container queries** - Count items, check space, get all items
 - **Container modification** - Remove items, clear containers
+- **Dropped item entity management** - Get all dropped items, filter by type/radius, remove items, teleport items
+- **Item magnet systems** - Teleport items to players, create vacuum/collection mechanics
+- **Item cleanup** - Count and remove specific item types from the world
 - Item utilities: stackability checks, ID/quantity extraction
 
 ### PlayerHelper
@@ -115,6 +118,14 @@ HytaleDevLib provides 19 main helper classes that simplify Hytale plugin develop
 - **HUD control** - Show/hide specific HUD components
 - **UI animations** - Fade in/out effects for smooth transitions
 - Page manager and HUD manager access
+
+### TitleHelper
+- **On-screen title notifications** - Display major and minor titles to players
+- **Major titles** - Large, prominent notifications for important events
+- **Minor titles** - Smaller, subtle notifications for less critical info
+- **Custom icons** - Add icons to titles from asset paths
+- **Fade animations** - Control fade-in and fade-out timing
+- **Duration control** - Set how long titles display on screen
 
 ### LootHelper
 - **Custom block drops** - Override default block drops with custom items
