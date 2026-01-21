@@ -360,6 +360,52 @@ public class InventoryHelper {
     }
 
     /**
+     * Change the state of the item in the entity's active hand slot.
+     * This is useful for items that have multiple states (like buckets: empty, filled with water, etc.)
+     * 
+     * Uses ItemStack.withState() to create a new item with the specified state.
+     * 
+     * @param entity The entity whose active hand item to change
+     * @param state The state to change to (e.g., "Filled_Water" for buckets)
+     * @return true if the item's state was changed, false otherwise
+     */
+    public static boolean changeItemStateInActiveHand(Entity entity, String state) {
+        if (!(entity instanceof LivingEntity)) {
+            LOGGER.at(Level.WARNING).log("Entity is not a LivingEntity, cannot change item state");
+            return false;
+        }
+
+        try {
+            LivingEntity livingEntity = (LivingEntity) entity;
+            Inventory inventory = livingEntity.getInventory();
+            byte activeSlot = inventory.getActiveHotbarSlot();
+            
+            ItemStack currentStack = inventory.getHotbar().getItemStack(activeSlot);
+            if (currentStack == null || ItemStack.isEmpty(currentStack)) {
+                LOGGER.at(Level.WARNING).log("No item in active hand slot");
+                return false;
+            }
+            
+            try {
+                ItemStack newStack = currentStack.withState(state);
+                ItemStackSlotTransaction transaction = inventory.getHotbar().setItemStackForSlot(activeSlot, newStack);
+                if (transaction.succeeded()) {
+                    LOGGER.at(Level.INFO).log("Changed active hand item '" + currentStack.getItemId() + "' to state '" + state + "' (new ID: " + newStack.getItemId() + ")");
+                    return true;
+                }
+            } catch (IllegalArgumentException e) {
+                LOGGER.at(Level.WARNING).log("Invalid state '" + state + "' for item " + currentStack.getItemId() + ": " + e.getMessage());
+                return false;
+            }
+            
+            return false;
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error changing item state in active hand: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Change the state of an item in the entity's inventory.
      * This is useful for items that have multiple states (like buckets: empty, filled with water, etc.)
      * 
