@@ -784,19 +784,15 @@ public class EntityHelper {
                                 String foundItemId = itemStack != null ? itemStack.getItemId() : "unknown";
                                 int foundQuantity = itemStack != null ? itemStack.getQuantity() : 0;
                                 
-                                // Get the UUID to find and remove the entity
-                                com.hypixel.hytale.server.core.entity.UUIDComponent uuidComp = 
-                                    archetypeChunk.getComponent(i, com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType());
+                                // Get the Ref and remove the entity using CommandBuffer
+                                com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> ref = 
+                                    archetypeChunk.getReferenceTo(i);
                                 
-                                if (uuidComp != null) {
-                                    java.util.UUID uuid = uuidComp.getUuid();
-                                    Entity entity = world.getEntity(uuid);
-                                    if (entity != null) {
-                                        entity.remove();
-                                        itemEntitiesRemoved[0]++;
-                                        com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
-                                            .log("Removed item entity: " + foundQuantity + "x " + foundItemId + " at distance=" + String.format("%.2f", distance));
-                                    }
+                                if (ref != null && ref.isValid()) {
+                                    commandBuffer.removeEntity(ref, com.hypixel.hytale.component.RemoveReason.REMOVE);
+                                    itemEntitiesRemoved[0]++;
+                                    com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
+                                        .log("Removed item entity: " + foundQuantity + "x " + foundItemId + " at distance=" + String.format("%.2f", distance));
                                 }
                             }
                         }
