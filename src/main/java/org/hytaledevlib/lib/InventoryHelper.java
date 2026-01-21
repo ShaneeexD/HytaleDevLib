@@ -282,4 +282,159 @@ public class InventoryHelper {
             return -1;
         }
     }
+
+    /**
+     * Replace an item in the entity's inventory/hotbar with a different item.
+     * Searches through hotbar, storage, and backpack for the old item and replaces it.
+     * 
+     * @param entity The entity whose inventory to search
+     * @param oldItemId The item ID to find and replace
+     * @param newItemId The item ID to replace with
+     * @param quantity The quantity of the new item
+     * @return true if the item was found and replaced, false otherwise
+     */
+    public static boolean replaceItem(Entity entity, String oldItemId, String newItemId, int quantity) {
+        if (!(entity instanceof LivingEntity)) {
+            LOGGER.at(Level.WARNING).log("Entity is not a LivingEntity, cannot replace items");
+            return false;
+        }
+
+        try {
+            LivingEntity livingEntity = (LivingEntity) entity;
+            Inventory inventory = livingEntity.getInventory();
+            
+            // Try to find and replace in hotbar first
+            if (replaceItemInContainer(inventory.getHotbar(), oldItemId, newItemId, quantity)) {
+                return true;
+            }
+            
+            // Then try storage
+            if (replaceItemInContainer(inventory.getStorage(), oldItemId, newItemId, quantity)) {
+                return true;
+            }
+            
+            // Finally try backpack
+            if (replaceItemInContainer(inventory.getBackpack(), oldItemId, newItemId, quantity)) {
+                return true;
+            }
+            
+            LOGGER.at(Level.WARNING).log("Item " + oldItemId + " not found in inventory");
+            return false;
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error replacing item: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Helper method to replace an item in a specific container.
+     * 
+     * @param container The container to search
+     * @param oldItemId The item ID to find
+     * @param newItemId The item ID to replace with
+     * @param quantity The quantity of the new item
+     * @return true if the item was found and replaced
+     */
+    private static boolean replaceItemInContainer(ItemContainer container, String oldItemId, String newItemId, int quantity) {
+        short capacity = container.getCapacity();
+        
+        for (short i = 0; i < capacity; i++) {
+            ItemStack stack = container.getItemStack(i);
+            if (stack != null && oldItemId.equals(stack.getItemId())) {
+                // Found the item, replace it
+                try {
+                    ItemStack newStack = new ItemStack(newItemId, quantity);
+                    ItemStackSlotTransaction transaction = container.setItemStackForSlot(i, newStack);
+                    if (transaction.succeeded()) {
+                        LOGGER.at(Level.INFO).log("Replaced " + oldItemId + " with " + newItemId + " in slot " + i);
+                        return true;
+                    }
+                } catch (Exception e) {
+                    LOGGER.at(Level.WARNING).log("Error creating replacement item: " + e.getMessage());
+                    return false;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Change the state of an item in the entity's inventory.
+     * This is useful for items that have multiple states (like buckets: empty, filled with water, etc.)
+     * 
+     * Uses ItemStack.withState() to create a new item with the specified state.
+     * 
+     * @param entity The entity whose inventory to search
+     * @param itemId The item ID to find
+     * @param state The state to change to (e.g., "Filled_Water" for buckets)
+     * @return true if the item was found and its state was changed, false otherwise
+     */
+    public static boolean changeItemState(Entity entity, String itemId, String state) {
+        if (!(entity instanceof LivingEntity)) {
+            LOGGER.at(Level.WARNING).log("Entity is not a LivingEntity, cannot change item state");
+            return false;
+        }
+
+        try {
+            LivingEntity livingEntity = (LivingEntity) entity;
+            Inventory inventory = livingEntity.getInventory();
+            
+            // Try to find and change state in hotbar first
+            if (changeItemStateInContainer(inventory.getHotbar(), itemId, state)) {
+                return true;
+            }
+            
+            // Then try storage
+            if (changeItemStateInContainer(inventory.getStorage(), itemId, state)) {
+                return true;
+            }
+            
+            // Finally try backpack
+            if (changeItemStateInContainer(inventory.getBackpack(), itemId, state)) {
+                return true;
+            }
+            
+            LOGGER.at(Level.WARNING).log("Item " + itemId + " not found in inventory");
+            return false;
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error changing item state: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Helper method to change an item's state in a specific container.
+     * 
+     * @param container The container to search
+     * @param itemId The item ID to find
+     * @param state The state to change to
+     * @return true if the item was found and state was changed
+     */
+    private static boolean changeItemStateInContainer(ItemContainer container, String itemId, String state) {
+        short capacity = container.getCapacity();
+        
+        for (short i = 0; i < capacity; i++) {
+            ItemStack stack = container.getItemStack(i);
+            if (stack != null && itemId.equals(stack.getItemId())) {
+                // Found the item, change its state
+                try {
+                    ItemStack newStack = stack.withState(state);
+                    ItemStackSlotTransaction transaction = container.setItemStackForSlot(i, newStack);
+                    if (transaction.succeeded()) {
+                        LOGGER.at(Level.INFO).log("Changed " + itemId + " to state '" + state + "' in slot " + i + " (new ID: " + newStack.getItemId() + ")");
+                        return true;
+                    }
+                } catch (IllegalArgumentException e) {
+                    LOGGER.at(Level.WARNING).log("Invalid state '" + state + "' for item " + itemId + ": " + e.getMessage());
+                    return false;
+                } catch (Exception e) {
+                    LOGGER.at(Level.WARNING).log("Error changing item state: " + e.getMessage());
+                    return false;
+                }
+            }
+        }
+        
+        return false;
+    }
 }

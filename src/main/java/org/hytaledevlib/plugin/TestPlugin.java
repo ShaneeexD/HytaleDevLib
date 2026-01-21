@@ -1678,6 +1678,38 @@ public class TestPlugin extends JavaPlugin {
                         "All items teleported to you",
                         3.0f
                     );
+                    
+                    // Give empty bucket
+                    org.hytaledevlib.lib.InventoryHelper.giveItem(player, "Container_Bucket", 1);
+                    LOGGER.at(Level.INFO).log("🪣 Gave empty bucket to player");
+                    org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You received an empty bucket!");
+                    
+                    // After 100 ticks, change the bucket state to filled with water
+                    LOGGER.at(Level.INFO).log("⏱️ Will fill bucket with water in 100 ticks...");
+                    org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+                        // Change the bucket's state to filled with water
+                        boolean filled = org.hytaledevlib.lib.InventoryHelper.changeItemState(
+                            player,
+                            "Container_Bucket",
+                            "Filled_Water"
+                        );
+                        
+                        if (filled) {
+                            LOGGER.at(Level.INFO).log("💧 Successfully filled bucket with water!");
+                            org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Your bucket is now filled with water!");
+                            
+                            // Show minor title
+                            org.hytaledevlib.lib.TitleHelper.showMinorTitle(
+                                player,
+                                "Bucket Filled!",
+                                "Water bucket ready",
+                                2.0f
+                            );
+                        } else {
+                            LOGGER.at(Level.WARNING).log("❌ Failed to fill bucket - not found or invalid state");
+                            org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Could not fill bucket!");
+                        }
+                    });
                 } else {
                     LOGGER.at(Level.WARNING).log("❌ Failed to set adventure mode");
                 }
