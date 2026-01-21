@@ -1,6 +1,8 @@
 package org.hytaledevlib.lib;
 
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 
@@ -414,5 +416,393 @@ public class ItemHelper {
      */
     public static boolean isEmptyStack(ItemStack stack) {
         return stack == null || ItemStack.isEmpty(stack);
+    }
+    
+    // Item Entity Methods
+    
+    /**
+     * Represents a dropped item entity in the world.
+     * Contains the entity reference and item information.
+     */
+    public static class ItemEntity {
+        private final com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> ref;
+        private final String itemId;
+        private final int quantity;
+        private final com.hypixel.hytale.math.vector.Vector3d position;
+        
+        public ItemEntity(
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> ref,
+            String itemId,
+            int quantity,
+            com.hypixel.hytale.math.vector.Vector3d position
+        ) {
+            this.ref = ref;
+            this.itemId = itemId;
+            this.quantity = quantity;
+            this.position = position;
+        }
+        
+        public com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> getRef() {
+            return ref;
+        }
+        
+        public String getItemId() {
+            return itemId;
+        }
+        
+        public int getQuantity() {
+            return quantity;
+        }
+        
+        public com.hypixel.hytale.math.vector.Vector3d getPosition() {
+            return position;
+        }
+    }
+    
+    /**
+     * Get all dropped item entities in the world.
+     * 
+     * @param world The world to search in
+     * @return List of ItemEntity objects representing all dropped items
+     */
+    public static List<ItemEntity> getItemEntities(com.hypixel.hytale.server.core.universe.world.World world) {
+        List<ItemEntity> items = new ArrayList<>();
+        if (world == null) {
+            return items;
+        }
+        
+        com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+        com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = entityStore.getStore();
+        
+        // Use forEachChunk to iterate through entities with ItemComponent
+        java.util.function.BiConsumer<
+            com.hypixel.hytale.component.ArchetypeChunk<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>,
+            com.hypixel.hytale.component.CommandBuffer<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>
+        > consumer = (archetypeChunk, commandBuffer) -> {
+            for (int i = 0; i < archetypeChunk.size(); i++) {
+                try {
+                    // Get the ItemComponent
+                    com.hypixel.hytale.server.core.modules.entity.item.ItemComponent itemComp = 
+                        archetypeChunk.getComponent(i, com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType());
+                    
+                    if (itemComp != null) {
+                        // Get the transform for position
+                        TransformComponent transform = 
+                            archetypeChunk.getComponent(i, TransformComponent.getComponentType());
+                        
+                        if (transform != null) {
+                            // Get item info
+                            ItemStack itemStack = itemComp.getItemStack();
+                            String itemId = itemStack != null ? itemStack.getItemId() : "unknown";
+                            int quantity = itemStack != null ? itemStack.getQuantity() : 0;
+                            com.hypixel.hytale.math.vector.Vector3d position = transform.getPosition();
+                            
+                            // Get the Ref
+                            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> ref = 
+                                archetypeChunk.getReferenceTo(i);
+                            
+                            items.add(new ItemEntity(ref, itemId, quantity, position));
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip any errors
+                }
+            }
+        };
+        
+        store.forEachChunk(
+            (com.hypixel.hytale.component.query.Query<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) 
+                com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType(), 
+            consumer
+        );
+        
+        return items;
+    }
+    
+    /**
+     * Get all dropped item entities of a specific item type.
+     * 
+     * @param world The world to search in
+     * @param itemId The item ID to filter by (e.g., "Food_Pork_Raw")
+     * @return List of ItemEntity objects matching the item ID
+     */
+    public static List<ItemEntity> getItemEntitiesByItemId(com.hypixel.hytale.server.core.universe.world.World world, String itemId) {
+        List<ItemEntity> allItems = getItemEntities(world);
+        List<ItemEntity> filtered = new ArrayList<>();
+        
+        for (ItemEntity item : allItems) {
+            if (itemId.equals(item.getItemId())) {
+                filtered.add(item);
+            }
+        }
+        
+        return filtered;
+    }
+    
+    /**
+     * Get all dropped item entities within a radius of a position.
+     * 
+     * @param world The world to search in
+     * @param center Center position to search from
+     * @param radius Search radius in blocks
+     * @return List of ItemEntity objects within the radius
+     */
+    public static List<ItemEntity> getItemEntitiesInRadius(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        com.hypixel.hytale.math.vector.Vector3d center,
+        double radius
+    ) {
+        List<ItemEntity> allItems = getItemEntities(world);
+        List<ItemEntity> filtered = new ArrayList<>();
+        
+        for (ItemEntity item : allItems) {
+            com.hypixel.hytale.math.vector.Vector3d itemPos = item.getPosition();
+            double dx = center.getX() - itemPos.getX();
+            double dy = center.getY() - itemPos.getY();
+            double dz = center.getZ() - itemPos.getZ();
+            double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            
+            if (distance <= radius) {
+                filtered.add(item);
+            }
+        }
+        
+        return filtered;
+    }
+    
+    /**
+     * Remove a specific item entity from the world.
+     * 
+     * @param world The world containing the item entity
+     * @param itemEntity The ItemEntity to remove
+     * @return true if successfully removed
+     */
+    public static boolean removeItemEntity(com.hypixel.hytale.server.core.universe.world.World world, ItemEntity itemEntity) {
+        if (world == null || itemEntity == null || itemEntity.getRef() == null) {
+            return false;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = entityStore.getStore();
+            
+            // Create a command buffer and remove the entity
+            final boolean[] removed = {false};
+            store.forEachChunk(
+                (com.hypixel.hytale.component.query.Query<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) 
+                    com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType(),
+                (archetypeChunk, commandBuffer) -> {
+                    if (itemEntity.getRef().isValid()) {
+                        commandBuffer.removeEntity(itemEntity.getRef(), com.hypixel.hytale.component.RemoveReason.REMOVE);
+                        removed[0] = true;
+                    }
+                }
+            );
+            
+            return removed[0];
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error removing item entity: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Remove all dropped item entities from the world.
+     * 
+     * @param world The world to clear items from
+     * @return Number of items removed
+     */
+    public static int removeAllItemEntities(com.hypixel.hytale.server.core.universe.world.World world) {
+        List<ItemEntity> items = getItemEntities(world);
+        int removed = 0;
+        
+        for (ItemEntity item : items) {
+            if (removeItemEntity(world, item)) {
+                removed++;
+            }
+        }
+        
+        return removed;
+    }
+    
+    /**
+     * Remove all dropped item entities of a specific type from the world.
+     * 
+     * @param world The world to clear items from
+     * @param itemId The item ID to remove (e.g., "Food_Pork_Raw")
+     * @return Number of items removed
+     */
+    public static int removeItemEntitiesByItemId(com.hypixel.hytale.server.core.universe.world.World world, String itemId) {
+        List<ItemEntity> items = getItemEntitiesByItemId(world, itemId);
+        int removed = 0;
+        
+        for (ItemEntity item : items) {
+            if (removeItemEntity(world, item)) {
+                removed++;
+            }
+        }
+        
+        return removed;
+    }
+    
+    /**
+     * Count the total number of dropped item entities in the world.
+     * 
+     * @param world The world to count items in
+     * @return Number of dropped items
+     */
+    public static int countItemEntities(com.hypixel.hytale.server.core.universe.world.World world) {
+        return getItemEntities(world).size();
+    }
+    
+    /**
+     * Count dropped item entities of a specific type.
+     * 
+     * @param world The world to count items in
+     * @param itemId The item ID to count
+     * @return Number of matching dropped items
+     */
+    public static int countItemEntitiesByItemId(com.hypixel.hytale.server.core.universe.world.World world, String itemId) {
+        return getItemEntitiesByItemId(world, itemId).size();
+    }
+    
+    /**
+     * Teleport a specific item entity to a new position.
+     * 
+     * @param world The world containing the item entity
+     * @param itemEntity The ItemEntity to teleport
+     * @param position The new position
+     * @return true if successfully teleported
+     */
+    public static boolean teleportItemEntity(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        ItemEntity itemEntity,
+        Vector3d position
+    ) {
+        if (world == null || itemEntity == null || itemEntity.getRef() == null || position == null) {
+            return false;
+        }
+        
+        try {
+            com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = entityStore.getStore();
+            
+            // Update the transform component
+            final boolean[] teleported = {false};
+            store.forEachChunk(
+                (com.hypixel.hytale.component.query.Query<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) 
+                    com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType(),
+                (archetypeChunk, commandBuffer) -> {
+                    if (itemEntity.getRef().isValid()) {
+                        TransformComponent transform = commandBuffer.getComponent(
+                            itemEntity.getRef(),
+                            TransformComponent.getComponentType()
+                        );
+                        if (transform != null) {
+                            transform.setPosition(position);
+                            teleported[0] = true;
+                        }
+                    }
+                }
+            );
+            
+            return teleported[0];
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error teleporting item entity: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Teleport a specific item entity to coordinates.
+     * 
+     * @param world The world containing the item entity
+     * @param itemEntity The ItemEntity to teleport
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if successfully teleported
+     */
+    public static boolean teleportItemEntity(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        ItemEntity itemEntity,
+        double x, double y, double z
+    ) {
+        return teleportItemEntity(world, itemEntity, new Vector3d(x, y, z));
+    }
+    
+    /**
+     * Teleport all dropped items of a specific type to a position.
+     * 
+     * @param world The world to search in
+     * @param itemId The item ID to teleport (e.g., "Food_Pork_Raw")
+     * @param position The destination position
+     * @return Number of items teleported
+     */
+    public static int teleportItemEntitiesByItemId(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        String itemId,
+        Vector3d position
+    ) {
+        List<ItemEntity> items = getItemEntitiesByItemId(world, itemId);
+        int teleported = 0;
+        
+        for (ItemEntity item : items) {
+            if (teleportItemEntity(world, item, position)) {
+                teleported++;
+            }
+        }
+        
+        return teleported;
+    }
+    
+    /**
+     * Teleport all dropped items within a radius to a position.
+     * 
+     * @param world The world to search in
+     * @param center Center position to search from
+     * @param radius Search radius in blocks
+     * @param destination The destination position
+     * @return Number of items teleported
+     */
+    public static int teleportItemEntitiesInRadius(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        Vector3d center,
+        double radius,
+        Vector3d destination
+    ) {
+        List<ItemEntity> items = getItemEntitiesInRadius(world, center, radius);
+        int teleported = 0;
+        
+        for (ItemEntity item : items) {
+            if (teleportItemEntity(world, item, destination)) {
+                teleported++;
+            }
+        }
+        
+        return teleported;
+    }
+    
+    /**
+     * Teleport all dropped items in the world to a position.
+     * 
+     * @param world The world to search in
+     * @param position The destination position
+     * @return Number of items teleported
+     */
+    public static int teleportAllItemEntities(
+        com.hypixel.hytale.server.core.universe.world.World world,
+        Vector3d position
+    ) {
+        List<ItemEntity> items = getItemEntities(world);
+        int teleported = 0;
+        
+        for (ItemEntity item : items) {
+            if (teleportItemEntity(world, item, position)) {
+                teleported++;
+            }
+        }
+        
+        return teleported;
     }
 }
