@@ -85,6 +85,9 @@ public class TestPlugin extends JavaPlugin {
                         
                         // Test game mode switching for player Se7enity
                         testGameModeSwitching(world);
+                        
+                        // Test item entity teleportation
+                        testItemEntityTeleport(world);
                     });
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
@@ -1611,6 +1614,79 @@ public class TestPlugin extends JavaPlugin {
         });
         
         LOGGER.at(Level.INFO).log("GameMode switching test scheduled!");
+        LOGGER.at(Level.INFO).log("========================================");
+    }
+    
+    /**
+     * Test teleporting all item entities to the player and setting game mode to adventure.
+     */
+    private void testItemEntityTeleport(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Starting Item Entity Teleport Test");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Find player Se7enity
+        com.hypixel.hytale.server.core.entity.Entity targetPlayer = null;
+        for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
+            if (org.hytaledevlib.lib.EntityHelper.isPlayer(entity)) {
+                String name = org.hytaledevlib.lib.EntityHelper.getName(entity);
+                if ("Se7enity".equals(name)) {
+                    targetPlayer = entity;
+                    break;
+                }
+            }
+        }
+        
+        if (targetPlayer == null) {
+            LOGGER.at(Level.WARNING).log("Player Se7enity not found! Test cancelled.");
+            return;
+        }
+        
+        final com.hypixel.hytale.server.core.entity.Entity player = targetPlayer;
+        
+        // Wait 5 seconds before running the test
+        LOGGER.at(Level.INFO).log("⏱️ Will teleport items and set adventure mode in 100 ticks (5 seconds)...");
+        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+            // Get player position
+            com.hypixel.hytale.math.vector.Vector3d playerPos = org.hytaledevlib.lib.EntityHelper.getPosition(player);
+            if (playerPos == null) {
+                LOGGER.at(Level.WARNING).log("❌ Could not get player position!");
+                return;
+            }
+            
+            // Count items before teleport
+            int itemCount = org.hytaledevlib.lib.ItemHelper.countItemEntities(world);
+            LOGGER.at(Level.INFO).log("📦 Found " + itemCount + " dropped items in the world");
+            
+            // Teleport all items to player
+            int teleported = org.hytaledevlib.lib.ItemHelper.teleportAllItemEntities(world, playerPos);
+            LOGGER.at(Level.INFO).log("✨ Teleported " + teleported + " items to player position!");
+            
+            // Set game mode to Adventure
+            GameMode adventureMode;
+            try {
+                adventureMode = GameMode.valueOf("Adventure");
+                boolean success = org.hytaledevlib.lib.PlayerHelper.setGameMode(world, player, adventureMode);
+                if (success) {
+                    LOGGER.at(Level.INFO).log("✅ Set Se7enity to ADVENTURE mode!");
+                    org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "All items teleported to you! Adventure mode activated!");
+                    
+                    // Show title
+                    org.hytaledevlib.lib.TitleHelper.showMajorTitle(
+                        player,
+                        "Item Magnet!",
+                        "All items teleported to you",
+                        3.0f
+                    );
+                } else {
+                    LOGGER.at(Level.WARNING).log("❌ Failed to set adventure mode");
+                }
+            } catch (Exception e) {
+                LOGGER.at(Level.WARNING).log("❌ Error setting game mode: " + e.getMessage());
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("Item entity teleport test scheduled!");
         LOGGER.at(Level.INFO).log("========================================");
     }
 }
