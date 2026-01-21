@@ -168,7 +168,7 @@ HytaleDevLib provides 19 main helper classes that simplify Hytale plugin develop
 Add as a dependency in your `build.gradle`:
 ```gradle
 dependencies {
-    implementation files("path/to/HytaleDevLib.jar")
+    implementation (files("path/to/HytaleDevLib.jar")
 }
 ```
 
