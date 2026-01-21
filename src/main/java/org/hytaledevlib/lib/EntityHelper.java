@@ -741,55 +741,32 @@ public class EntityHelper {
         com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
         com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = entityStore.getStore();
         
-        // Collect all UUIDs first to avoid concurrent modification
-        java.util.List<java.util.UUID> uuidsToCheck = new java.util.ArrayList<>();
+        // Track removal stats
+        final int[] itemEntitiesFound = {0};
+        final int[] itemEntitiesRemoved = {0};
+        final int[] chunksChecked = {0};
         
-        // Use forEachChunk to iterate through all entities with UUIDs
+        // Use forEachChunk to directly iterate through entities with ItemComponent
         java.util.function.BiConsumer<
             com.hypixel.hytale.component.ArchetypeChunk<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>,
             com.hypixel.hytale.component.CommandBuffer<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>
         > consumer = (archetypeChunk, commandBuffer) -> {
+            chunksChecked[0]++;
+            com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
+                .log("Checking chunk with " + archetypeChunk.size() + " entities");
+            
             for (int i = 0; i < archetypeChunk.size(); i++) {
                 try {
-                    com.hypixel.hytale.server.core.entity.UUIDComponent uuidComp = 
-                        archetypeChunk.getComponent(i, com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType());
+                    // Get the ItemComponent
+                    com.hypixel.hytale.server.core.modules.entity.item.ItemComponent itemComp = 
+                        archetypeChunk.getComponent(i, com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType());
                     
-                    if (uuidComp != null) {
-                        uuidsToCheck.add(uuidComp.getUuid());
-                    }
-                } catch (Exception e) {
-                    // Skip invalid entities
-                }
-            }
-        };
-        
-        store.forEachChunk(
-            (com.hypixel.hytale.component.query.Query<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) 
-                com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType(), 
-            consumer
-        );
-        
-        // Now check each entity
-        int entitiesChecked = 0;
-        int itemEntitiesFound = 0;
-        int itemEntitiesRemoved = 0;
-        
-        for (java.util.UUID uuid : uuidsToCheck) {
-            try {
-                Entity entity = world.getEntity(uuid);
-                if (entity != null) {
-                    entitiesChecked++;
-                    
-                    // Check if it's an item entity using getEntityType
-                    String entityType = getEntityType(entity);
-                    String entityClass = entity.getClass().getSimpleName();
-                    
-                    // Item entities typically have "Item" in their type
-                    if (entityType != null && (entityType.contains("Item") || entityType.contains("Drop"))) {
-                        itemEntitiesFound++;
+                    if (itemComp != null) {
+                        itemEntitiesFound[0]++;
                         
-                        // Get entity position using the entity's deprecated getTransformComponent
-                        TransformComponent transform = entity.getTransformComponent();
+                        // Get the transform to check distance
+                        TransformComponent transform = 
+                            archetypeChunk.getComponent(i, TransformComponent.getComponentType());
                         
                         if (transform != null) {
                             Vector3d entityPos = transform.getPosition();
@@ -798,22 +775,47 @@ public class EntityHelper {
                             double dz = centerPos.getZ() - entityPos.getZ();
                             double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
                             
+                            com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
+                                .log("Found item entity at distance=" + String.format("%.2f", distance) + " (radius=" + radius + ")");
+                            
                             if (distance <= radius) {
-                                // Remove the item entity
-                                entity.remove();
-                                itemEntitiesRemoved++;
-                                com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
-                                    .log("Removed item entity: type=" + entityType + ", class=" + entityClass + ", distance=" + distance);
+                                // Get the item info for logging
+                                com.hypixel.hytale.server.core.inventory.ItemStack itemStack = itemComp.getItemStack();
+                                String foundItemId = itemStack != null ? itemStack.getItemId() : "unknown";
+                                int foundQuantity = itemStack != null ? itemStack.getQuantity() : 0;
+                                
+                                // Get the UUID to find and remove the entity
+                                com.hypixel.hytale.server.core.entity.UUIDComponent uuidComp = 
+                                    archetypeChunk.getComponent(i, com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType());
+                                
+                                if (uuidComp != null) {
+                                    java.util.UUID uuid = uuidComp.getUuid();
+                                    Entity entity = world.getEntity(uuid);
+                                    if (entity != null) {
+                                        entity.remove();
+                                        itemEntitiesRemoved[0]++;
+                                        com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
+                                            .log("Removed item entity: " + foundQuantity + "x " + foundItemId + " at distance=" + String.format("%.2f", distance));
+                                    }
+                                }
                             }
                         }
                     }
+                } catch (Exception e) {
+                    // Silently skip any errors
+                    com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atWarning()
+                        .log("Error checking item entity: " + e.getMessage());
                 }
-            } catch (Exception e) {
-                // Silently skip any errors
             }
-        }
+        };
+        
+        store.forEachChunk(
+            (com.hypixel.hytale.component.query.Query<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) 
+                com.hypixel.hytale.server.core.modules.entity.item.ItemComponent.getComponentType(), 
+            consumer
+        );
         
         com.hypixel.hytale.logger.HytaleLogger.forEnclosingClass().atInfo()
-            .log("Entity removal stats: checked=" + entitiesChecked + ", itemsFound=" + itemEntitiesFound + ", removed=" + itemEntitiesRemoved);
+            .log("Item entity removal completed: chunksChecked=" + chunksChecked[0] + ", itemsFound=" + itemEntitiesFound[0] + ", removed=" + itemEntitiesRemoved[0]);
     }
 }
