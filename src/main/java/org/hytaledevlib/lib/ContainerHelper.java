@@ -260,7 +260,19 @@ public class ContainerHelper {
      */
     public static ContainerTransaction parseTransaction(ItemContainer container, ItemContainer.ItemContainerChangeEvent event) {
         String transactionStr = event.transaction().toString();
+        
+        // Log the raw transaction for debugging
+        LOGGER.atInfo().log("=== CONTAINER TRANSACTION DEBUG ===");
+        LOGGER.atInfo().log("Transaction Class: " + event.transaction().getClass().getSimpleName());
+        LOGGER.atInfo().log("Raw Transaction: " + transactionStr);
+        
         ContainerTransaction parsed = parseTransactionString(transactionStr);
+        
+        LOGGER.atInfo().log("Parsed Action: " + parsed.getAction());
+        LOGGER.atInfo().log("Parsed ItemId: " + parsed.getItemId());
+        LOGGER.atInfo().log("Parsed Quantity: " + parsed.getQuantity());
+        LOGGER.atInfo().log("===================================");
+        
         // Create new transaction with container and transaction objects for cancellation support
         return new ContainerTransaction(parsed.getAction(), parsed.getItemId(), parsed.getQuantity(), 
                                        parsed.getRawTransaction(), container, event.transaction());
@@ -277,8 +289,38 @@ public class ContainerHelper {
         int quantity = 0;
         String action = "UNKNOWN";
         
+        // For ListTransaction (used by "take all" button), parse the first MoveTransaction in the list
+        if (transaction.startsWith("ListTransaction{")) {
+            // Extract the first MoveTransaction from the list
+            int firstMoveStart = transaction.indexOf("MoveTransaction{");
+            if (firstMoveStart != -1) {
+                // Find the matching closing brace for this MoveTransaction
+                int braceCount = 1;
+                int pos = firstMoveStart + "MoveTransaction{".length();
+                while (pos < transaction.length() && braceCount > 0) {
+                    if (transaction.charAt(pos) == '{') braceCount++;
+                    else if (transaction.charAt(pos) == '}') braceCount--;
+                    pos++;
+                }
+                // Extract just the first MoveTransaction
+                String firstMove = transaction.substring(firstMoveStart, pos);
+                // Recursively parse this MoveTransaction
+                return parseTransactionString(firstMove);
+            }
+        }
+        // For ItemStackTransaction (used by individual quick move), check the action field
+        else if (transaction.startsWith("ItemStackTransaction{")) {
+            // ItemStackTransaction with action=REMOVE means items are being removed from this container
+            if (transaction.contains("action=REMOVE")) {
+                action = "REMOVED";
+            } else if (transaction.contains("action=ADD")) {
+                action = "ADDED";
+            } else if (transaction.contains("action=SET")) {
+                action = "SET";
+            }
+        }
         // For MoveTransaction, we need to determine if items were added or removed from THIS container
-        if (transaction.startsWith("MoveTransaction{")) {
+        else if (transaction.startsWith("MoveTransaction{")) {
             // Check moveType to determine direction
             // moveType=MOVE_FROM_SELF means items are leaving this container (REMOVED)
             // moveType=MOVE_TO_SELF means items are entering this container (ADDED)
@@ -311,7 +353,7 @@ public class ContainerHelper {
                 }
             }
         } else {
-            // For non-MoveTransaction, use simple action detection
+            // For other transaction types, use simple action detection
             if (transaction.contains("action=ADD")) {
                 action = "ADDED";
             } else if (transaction.contains("action=REMOVE")) {
@@ -492,8 +534,41 @@ public class ContainerHelper {
             
             // Try to extract slot information using reflection
             try {
+                // For ListTransaction (take all button), iterate through all MoveTransactions
+                if (trans.getClass().getSimpleName().equals("ListTransaction")) {
+                    try {
+                        java.lang.reflect.Method getList = trans.getClass().getMethod("getList");
+                        Object listObj = getList.invoke(trans);
+                        
+                        if (listObj instanceof java.util.List<?>) {
+                            @SuppressWarnings("unchecked")
+                            java.util.List<Object> transactionList = (java.util.List<Object>)listObj;
+                            
+                            // Revert each MoveTransaction in the list
+                            for (Object moveTransObj : transactionList) {
+                                if (moveTransObj == null) continue;
+                                
+                                // Create a temporary ContainerTransaction for this MoveTransaction
+                                ContainerTransaction tempTrans = new ContainerTransaction(
+                                    transaction.getAction(),
+                                    transaction.getItemId(),
+                                    transaction.getQuantity(),
+                                    transaction.getRawTransaction(),
+                                    container,
+                                    (com.hypixel.hytale.server.core.inventory.transaction.Transaction)moveTransObj
+                                );
+                                
+                                // Recursively revert this individual MoveTransaction
+                                revertContainerTransaction(tempTrans);
+                            }
+                        }
+                    } catch (Exception e) {
+                        LOGGER.atWarning().log("Failed to handle ListTransaction: " + e.getMessage());
+                    }
+                    return;
+                }
                 // For MoveTransaction, we need to reverse the move
-                if (trans.getClass().getSimpleName().equals("MoveTransaction")) {
+                else if (trans.getClass().getSimpleName().equals("MoveTransaction")) {
                     java.lang.reflect.Method getMoveType = trans.getClass().getMethod("getMoveType");
                     java.lang.reflect.Method getRemoveTransaction = trans.getClass().getMethod("getRemoveTransaction");
                     java.lang.reflect.Method getAddTransaction = trans.getClass().getMethod("getAddTransaction");
@@ -694,8 +769,41 @@ public class ContainerHelper {
                         return;
                     }
                 }
+                // For standalone ItemStackSlotTransaction (drag outside UI to drop)
+                // We need to restore the item to the chest AND remove the dropped item entity
+                else if (trans.getClass().getSimpleName().equals("ItemStackSlotTransaction")) {
+                    LOGGER.atInfo().log("ItemStackSlotTransaction detected - will restore and remove dropped item");
+                    
+                    String itemId = transaction.getItemId();
+                    int quantity = transaction.getQuantity();
+                    
+                    // Find the world and position from tracked containers
+                    for (Map.Entry<String, Map<Vector3i, ContainerListener>> worldEntry : trackedContainers.entrySet()) {
+                        String worldName = worldEntry.getKey();
+                        for (Map.Entry<Vector3i, ContainerListener> containerEntry : worldEntry.getValue().entrySet()) {
+                            if (containerEntry.getValue().container == container) {
+                                Vector3i position = containerEntry.getKey();
+                                
+                                // Get the world from Universe
+                                World world = com.hypixel.hytale.server.core.universe.Universe.get().getWorld(worldName);
+                                
+                                if (world != null) {
+                                    // Schedule removal of dropped items near the container after a short delay
+                                    WorldHelper.waitTicks(world, 3, () -> {
+                                        EntityHelper.removeNearbyItemEntities(world, position, itemId, quantity, 5.0);
+                                        LOGGER.atInfo().log("Attempted to remove dropped item: " + quantity + "x " + itemId);
+                                    });
+                                }
+                                
+                                // Don't return - let it fall through to the SlotTransaction handler below to restore the item
+                                break;
+                            }
+                        }
+                    }
+                    // Fall through to SlotTransaction handler to restore the item
+                }
                 
-                // For simple ItemStackSlotTransaction (direct slot changes)
+                // For simple SlotTransaction (direct slot changes)
                 try {
                     java.lang.reflect.Method getSlot = trans.getClass().getMethod("getSlot");
                     java.lang.reflect.Method getSlotBefore = trans.getClass().getMethod("getSlotBefore");
