@@ -1541,6 +1541,15 @@ public class TestPlugin extends JavaPlugin {
                 LOGGER.at(Level.INFO).log("✅ Se7enity switched to CREATIVE mode!");
                 org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You are now in CREATIVE mode!");
                 
+                // Show MAJOR title for creative mode (2 seconds)
+                org.hytaledevlib.lib.TitleHelper.showMajorTitle(
+                    player,
+                    "Creative Mode",
+                    "Build freely!",
+                    2.0f
+                );
+                LOGGER.at(Level.INFO).log("📺 Showed MAJOR title for Creative mode");
+                
                 // Switch back to ADVENTURE after another 100 ticks
                 LOGGER.at(Level.INFO).log("⏱️ Will switch Se7enity back to ADVENTURE in 100 ticks (5 seconds)...");
                 org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
@@ -1548,6 +1557,15 @@ public class TestPlugin extends JavaPlugin {
                     if (success2) {
                         LOGGER.at(Level.INFO).log("✅ Se7enity switched back to ADVENTURE mode!");
                         org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "You are now in ADVENTURE mode!");
+                        
+                        // Show MINOR title for adventure mode (2 seconds)
+                        org.hytaledevlib.lib.TitleHelper.showMinorTitle(
+                            player,
+                            "Adventure Mode",
+                            "Explore the world",
+                            2.0f
+                        );
+                        LOGGER.at(Level.INFO).log("📺 Showed MINOR title for Adventure mode");
                         
                         // Play 2D sound test - only this player hears it
                         org.hytaledevlib.lib.SoundHelper.playSound2DToPlayer(
@@ -1558,6 +1576,31 @@ public class TestPlugin extends JavaPlugin {
                             1.0f  // Normal pitch
                         );
                         LOGGER.at(Level.INFO).log("🔊 Played 2D sound to Se7enity");
+                        
+                        // Wait another 100 ticks then show boss title
+                        LOGGER.at(Level.INFO).log("⏱️ Will show boss title in 100 ticks (5 seconds)...");
+                        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+                            org.hytaledevlib.lib.TitleHelper.showBossTitle(
+                                player,
+                                "Ancient Dragon",
+                                "Prepare for battle!"
+                            );
+                            LOGGER.at(Level.INFO).log("📺 Showed BOSS title (4 seconds)");
+                            
+                            // Wait another 100 ticks then show title with icon
+                            LOGGER.at(Level.INFO).log("⏱️ Will show title with icon in 100 ticks (5 seconds)...");
+                            org.hytaledevlib.lib.WorldHelper.waitTicks(world, 100, () -> {
+                                org.hytaledevlib.lib.TitleHelper.showTitleWithIcon(
+                                    player,
+                                    true,  // Major title
+                                    "Achievement Unlocked!",
+                                    "HytaleDevLib Master",
+                                    "D:\\Documents\\Windsurf Projects\\Hytale Mods\\GroundItems\\Hytale-Example-Project\\HTDL.png",
+                                    2.0f
+                                );
+                                LOGGER.at(Level.INFO).log("📺 Showed title with HTDL.png icon (2 seconds)");
+                            });
+                        });
                     } else {
                         LOGGER.at(Level.WARNING).log("❌ Failed to switch Se7enity back to ADVENTURE mode");
                     }
