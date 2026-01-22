@@ -21,6 +21,9 @@ public class TestPlugin extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private World world;
     
+    // Track which players have which wells open
+    private final java.util.Map<String, com.hypixel.hytale.math.vector.Vector3i> openWells = new java.util.concurrent.ConcurrentHashMap<>();
+    
     public TestPlugin(@Nonnull JavaPluginInit init) {
         super(init);
         LOGGER.at(Level.INFO).log("HytaleDevLib Test Plugin v" + this.getManifest().getVersion().toString() + " loaded!");
@@ -43,6 +46,9 @@ public class TestPlugin extends JavaPlugin {
                     
                     // Register ECS event helpers (must be done after we have a world)
                     registerEcsEventTests(world);
+                    
+                    // Start continuous well checking system
+                    startWellCheckingSystem(world);
                     
                     // Register ParticleHelper test
                     registerParticleHelperTest(world);
@@ -1024,6 +1030,161 @@ public class TestPlugin extends JavaPlugin {
             String playerName = org.hytaledevlib.lib.EntityHelper.getName(playerEntity);
             LOGGER.at(Level.INFO).log("[EcsEventTest] Block interacted by " + playerName + ": " + blockTypeId + " at " + position);
             
+            // Check if this is the well bench - fill buckets in output slot
+            if ("Bench_Well".equals(blockTypeId)) {
+                try {
+                    LOGGER.at(Level.INFO).log("========================================");
+                    LOGGER.at(Level.INFO).log("🪣 WELL BENCH DETECTED!");
+                    LOGGER.at(Level.INFO).log("Position: " + position);
+                    LOGGER.at(Level.INFO).log("Block Type: " + blockTypeId);
+                    
+                    // Get the block state
+                    LOGGER.at(Level.INFO).log("Step 1: Getting block state...");
+                    com.hypixel.hytale.server.core.universe.world.meta.BlockState state = 
+                        org.hytaledevlib.lib.BlockStateHelper.ensureState(world, position.x, position.y, position.z);
+                    
+                    if (state == null) {
+                        LOGGER.at(Level.WARNING).log("  ❌ Block state is NULL!");
+                        return;
+                    }
+                    LOGGER.at(Level.INFO).log("  ✓ Got block state: " + state.getClass().getSimpleName());
+                    
+                    if (!(state instanceof com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState)) {
+                        LOGGER.at(Level.WARNING).log("  ❌ Block state is NOT ProcessingBenchState!");
+                        LOGGER.at(Level.WARNING).log("  Actual type: " + state.getClass().getName());
+                        return;
+                    }
+                    LOGGER.at(Level.INFO).log("  ✓ State is ProcessingBenchState");
+                    
+                    com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState wellState = 
+                        (com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState) state;
+                    
+                    // Get the combined container (includes input, fuel, and output)
+                    LOGGER.at(Level.INFO).log("Step 2: Getting combined item container...");
+                    com.hypixel.hytale.server.core.inventory.container.CombinedItemContainer combinedContainer = wellState.getItemContainer();
+                    if (combinedContainer == null) {
+                        LOGGER.at(Level.WARNING).log("  ❌ Combined container is NULL!");
+                        return;
+                    }
+                    
+                    // Access individual containers
+                    LOGGER.at(Level.INFO).log("  ✓ Got combined container!");
+                    LOGGER.at(Level.INFO).log("  Number of sub-containers: " + combinedContainer.getContainersSize());
+                    
+                    // The output container is the last one in the combined container
+                    // Order: fuel (0), input (1), output (2)
+                    com.hypixel.hytale.server.core.inventory.container.ItemContainer container = 
+                        combinedContainer.getContainer(2); // Output container
+                    if (container == null) {
+                        LOGGER.at(Level.WARNING).log("  ❌ Output container is NULL!");
+                        return;
+                    }
+                    
+                    short capacity = container.getCapacity();
+                    LOGGER.at(Level.INFO).log("  ✓ Got container! Capacity: " + capacity);
+                    
+                    // Log ALL slots and their contents
+                    LOGGER.at(Level.INFO).log("Step 3: Scanning all slots...");
+                    for (short i = 0; i < capacity; i++) {
+                        com.hypixel.hytale.server.core.inventory.ItemStack stack = container.getItemStack(i);
+                        if (stack != null) {
+                            LOGGER.at(Level.INFO).log("  Slot " + i + ": " + stack.getItemId() + " x" + stack.getQuantity());
+                        } else {
+                            LOGGER.at(Level.INFO).log("  Slot " + i + ": EMPTY");
+                        }
+                    }
+                    
+                    // Check all slots for custom well buckets and convert them
+                    LOGGER.at(Level.INFO).log("Step 4: Looking for Container_Bucket_Filled_Water_Well...");
+                    int bucketsFound = 0;
+                    int bucketsFilled = 0;
+                    
+                    for (short i = 0; i < capacity; i++) {
+                        com.hypixel.hytale.server.core.inventory.ItemStack stack = container.getItemStack(i);
+                        if (stack != null && "Container_Bucket_Filled_Water_Well".equals(stack.getItemId())) {
+                            bucketsFound++;
+                            LOGGER.at(Level.INFO).log("  ✓ FOUND well bucket in slot " + i + "!");
+                            LOGGER.at(Level.INFO).log("    Current ID: " + stack.getItemId());
+                            LOGGER.at(Level.INFO).log("    Quantity: " + stack.getQuantity());
+                            
+                            try {
+                                LOGGER.at(Level.INFO).log("    Step 4a: Temporarily disabling output filter...");
+                                // Change filter from ALLOW_OUTPUT_ONLY to ALLOW_ALL to allow modifications
+                                container.setGlobalFilter(com.hypixel.hytale.server.core.inventory.container.filter.FilterType.ALLOW_ALL);
+                                LOGGER.at(Level.INFO).log("    ✓ Filter changed to ALLOW_ALL");
+                                
+                                LOGGER.at(Level.INFO).log("    Step 4b: Creating vanilla water-filled bucket...");
+                                com.hypixel.hytale.server.core.inventory.ItemStack emptyBucket = 
+                                    new com.hypixel.hytale.server.core.inventory.ItemStack("Container_Bucket", stack.getQuantity());
+                                com.hypixel.hytale.server.core.inventory.ItemStack filledBucket = emptyBucket.withState("Filled_Water");
+                                LOGGER.at(Level.INFO).log("    ✓ Created filled bucket: " + filledBucket.getItemId());
+                                
+                                LOGGER.at(Level.INFO).log("    Step 4c: Setting filled bucket in slot " + i + "...");
+                                container.setItemStackForSlot(i, filledBucket);
+                                LOGGER.at(Level.INFO).log("    ✓ Item set in slot!");
+                                
+                                LOGGER.at(Level.INFO).log("    Step 4d: Restoring output filter...");
+                                // Restore the output-only filter
+                                container.setGlobalFilter(com.hypixel.hytale.server.core.inventory.container.filter.FilterType.ALLOW_OUTPUT_ONLY);
+                                LOGGER.at(Level.INFO).log("    ✓ Filter restored to ALLOW_OUTPUT_ONLY");
+                                
+                                // Verify the change persisted
+                                com.hypixel.hytale.server.core.inventory.ItemStack verifyStack = container.getItemStack(i);
+                                LOGGER.at(Level.INFO).log("    Step 4e: Verifying change...");
+                                if (verifyStack != null && filledBucket.getItemId().equals(verifyStack.getItemId())) {
+                                    LOGGER.at(Level.INFO).log("    ✓ SUCCESS! Slot now contains: " + verifyStack.getItemId());
+                                    bucketsFilled++;
+                                    LOGGER.at(Level.INFO).log("  💧 Successfully converted bucket in slot " + i + "!");
+                                } else if (verifyStack != null) {
+                                    LOGGER.at(Level.WARNING).log("    ❌ Change reverted! Slot contains: " + verifyStack.getItemId());
+                                } else {
+                                    LOGGER.at(Level.WARNING).log("    ❌ Slot is now empty!");
+                                }
+                            } catch (Exception e) {
+                                LOGGER.at(Level.WARNING).log("  ❌ Failed to convert bucket in slot " + i + ": " + e.getMessage());
+                                e.printStackTrace();
+                                // Try to restore filter even if there was an error
+                                try {
+                                    container.setGlobalFilter(com.hypixel.hytale.server.core.inventory.container.filter.FilterType.ALLOW_OUTPUT_ONLY);
+                                } catch (Exception ex) {
+                                    // Ignore
+                                }
+                            }
+                        }
+                    }
+                    
+                    LOGGER.at(Level.INFO).log("Step 5: Summary");
+                    LOGGER.at(Level.INFO).log("  Buckets found: " + bucketsFound);
+                    LOGGER.at(Level.INFO).log("  Buckets filled: " + bucketsFilled);
+                    
+                    if (bucketsFound > 0) {
+                        if (bucketsFilled > 0) {
+                            LOGGER.at(Level.INFO).log("  Marking state for save...");
+                            org.hytaledevlib.lib.BlockStateHelper.markNeedsSave(wellState);
+                            LOGGER.at(Level.INFO).log("  ✓ State marked for save");
+                            org.hytaledevlib.lib.PlayerHelper.sendMessage(playerEntity, "§aFilled " + bucketsFilled + " bucket(s) with water!");
+                        }
+                    } else {
+                        LOGGER.at(Level.INFO).log("  No Container_Bucket_Filled_Water_Well found in any slot");
+                    }
+                    
+                    LOGGER.at(Level.INFO).log("========================================");
+                    
+                    // Track that this player has this well open
+                    openWells.put(playerName, position);
+                    LOGGER.at(Level.INFO).log("📝 Tracking well at " + position + " for player " + playerName);
+                    
+                    // Schedule removal after 10 seconds (player likely closed UI)
+                    org.hytaledevlib.lib.WorldHelper.waitTicks(world, 200, () -> {
+                        openWells.remove(playerName);
+                        LOGGER.at(Level.INFO).log("⏱️ Stopped tracking well for " + playerName + " (timeout)");
+                    });
+                } catch (Exception e) {
+                    LOGGER.at(Level.WARNING).log("❌ ERROR processing well bench: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+            
             // Check if this is a container block and register it
             if (org.hytaledevlib.lib.ContainerHelper.isContainerType(blockTypeId)) {
                 int currentCount = org.hytaledevlib.lib.ContainerHelper.getTrackedContainerCount(world);
@@ -1679,6 +1840,8 @@ public class TestPlugin extends JavaPlugin {
                         3.0f
                     );
                     
+                    // COMMENTED OUT: Old bucket transformation test - now using well bench instead
+                    /*
                     // Give empty bucket
                     org.hytaledevlib.lib.InventoryHelper.giveItem(player, "Container_Bucket", 1);
                     LOGGER.at(Level.INFO).log("🪣 Gave empty bucket to player");
@@ -1709,6 +1872,7 @@ public class TestPlugin extends JavaPlugin {
                             org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Could not fill bucket! Make sure you're holding it in your hand.");
                         }
                     });
+                    */
                 } else {
                     LOGGER.at(Level.WARNING).log("❌ Failed to set adventure mode");
                 }
@@ -1719,5 +1883,70 @@ public class TestPlugin extends JavaPlugin {
         
         LOGGER.at(Level.INFO).log("Item entity teleport test scheduled!");
         LOGGER.at(Level.INFO).log("========================================");
+    }
+    
+    /**
+     * Start continuous well checking system that runs every tick
+     */
+    private void startWellCheckingSystem(World world) {
+        LOGGER.at(Level.INFO).log("🔄 Starting continuous well checking system...");
+        
+        // Use WorldHelper to run a check every tick
+        org.hytaledevlib.lib.WorldHelper.onTick(world, (tickCount) -> {
+            if (!openWells.isEmpty()) {
+                // Check all tracked wells
+                for (java.util.Map.Entry<String, com.hypixel.hytale.math.vector.Vector3i> entry : openWells.entrySet()) {
+                    String playerName = entry.getKey();
+                    com.hypixel.hytale.math.vector.Vector3i wellPos = entry.getValue();
+                    
+                    try {
+                        // Get the well state
+                        com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState wellState = 
+                            (com.hypixel.hytale.builtin.crafting.state.ProcessingBenchState) 
+                            org.hytaledevlib.lib.BlockStateHelper.ensureState(world, wellPos.x, wellPos.y, wellPos.z);
+                        
+                        if (wellState != null) {
+                            com.hypixel.hytale.server.core.inventory.container.CombinedItemContainer combinedContainer = wellState.getItemContainer();
+                            if (combinedContainer != null) {
+                                com.hypixel.hytale.server.core.inventory.container.ItemContainer outputContainer = combinedContainer.getContainer(2);
+                                if (outputContainer != null) {
+                                    // Check for well buckets and convert them
+                                    for (short i = 0; i < outputContainer.getCapacity(); i++) {
+                                        com.hypixel.hytale.server.core.inventory.ItemStack stack = outputContainer.getItemStack(i);
+                                        if (stack != null && "Container_Bucket_Filled_Water_Well".equals(stack.getItemId())) {
+                                            // Found a well bucket - convert it!
+                                            LOGGER.at(Level.INFO).log("🔄 Auto-converting bucket in well at " + wellPos + " for " + playerName);
+                                            
+                                            // Temporarily disable filter
+                                            outputContainer.setGlobalFilter(com.hypixel.hytale.server.core.inventory.container.filter.FilterType.ALLOW_ALL);
+                                            
+                                            // Create filled vanilla bucket
+                                            com.hypixel.hytale.server.core.inventory.ItemStack emptyBucket = 
+                                                new com.hypixel.hytale.server.core.inventory.ItemStack("Container_Bucket", stack.getQuantity());
+                                            com.hypixel.hytale.server.core.inventory.ItemStack filledBucket = emptyBucket.withState("Filled_Water");
+                                            
+                                            // Set in slot
+                                            outputContainer.setItemStackForSlot(i, filledBucket);
+                                            
+                                            // Restore filter
+                                            outputContainer.setGlobalFilter(com.hypixel.hytale.server.core.inventory.container.filter.FilterType.ALLOW_OUTPUT_ONLY);
+                                            
+                                            // Mark for save
+                                            org.hytaledevlib.lib.BlockStateHelper.markNeedsSave(wellState);
+                                            
+                                            LOGGER.at(Level.INFO).log("  ✓ Converted! Slot now has: " + filledBucket.getItemId());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Silent fail for continuous checks
+                    }
+                }
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("✓ Well checking system started!");
     }
 }
