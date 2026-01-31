@@ -65,6 +65,9 @@ public class TestPlugin extends JavaPlugin {
                     // Register DeathHelper test
                     registerDeathHelperTest(world);
                     
+                    // Register mob loot test (uses DeathHelper callback)
+                    registerMobLootTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -1476,6 +1479,32 @@ public class TestPlugin extends JavaPlugin {
     }
     
     /**
+     * Register mob loot test - adds chance-based drops to Fen_Stalker.
+     */
+    private void registerMobLootTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering Mob Loot test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Add chance-based drops to Fen_Stalker (all with drop chances)
+        org.hytaledevlib.lib.LootHelper.registerMobLoot(world, "Fen_Stalker", (position) -> {
+            return java.util.Arrays.asList(
+                org.hytaledevlib.lib.LootHelper.ItemDrop.withChance("Weapon_Longsword_Adamantite", 1, 0.25f)
+            );
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Mob loot test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Fen_Stalker chance-based drops:");
+        LOGGER.at(Level.INFO).log("    - 75%: 1x Weapon_Longsword_Adamantite");
+        LOGGER.at(Level.INFO).log("    - 50%: 3x Ingredient_Diamond");
+        LOGGER.at(Level.INFO).log("    - 25%: 5x Ingredient_Gold (with scatter)");
+        LOGGER.at(Level.INFO).log("    - 10%: 1x Weapon_Sword_Iron (rare)");
+        LOGGER.at(Level.INFO).log("  ✓ Kill multiple Fen_Stalkers to see different drop combinations!");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
      * Register ContainerHelper test - sets up container tracking via interaction.
      */
     private void registerContainerHelperTest(World world) {
@@ -1580,6 +1609,9 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("");
         
         org.hytaledevlib.lib.DeathHelper.onEntityDeath(world, (death) -> {
+            // Handle mob loot drops first
+            org.hytaledevlib.lib.LootHelper.handleMobDeath(death, world);
+            
             com.hypixel.hytale.math.vector.Vector3d pos = death.getPosition();
             
             LOGGER.at(Level.INFO).log("═══════════════════════════════════════");

@@ -128,9 +128,13 @@ HytaleDevLib provides 20 main helper classes that simplify Hytale plugin develop
 - **Duration control** - Set how long titles display on screen
 
 ### LootHelper
-- **Custom block drops** - Override default block drops with custom items
-- **Loot tables** - Register custom loot for specific block types
-- **Physical item entities** - Spawn items with proper physics and collision
+- Custom block drop tables with replacement or additive modes
+- **Mob loot system with chance-based drops** - Add custom drops to any mob with percentage chances
+- Random drop quantities and velocities
+- Depth-based and conditional drops
+- Physical item entity spawning with proper physics
+- **Rare drop mechanics** - 10% legendary items, 50% uncommon drops, etc.
+- Works with DeathHelper for entity death tracking and collision
 - **Replacement or additive** - Replace default drops entirely or add bonus drops
 - **Conditional drops** - Support for position-based, random, or custom logic
 - **Velocity control** - Random or custom velocities for realistic drop patterns

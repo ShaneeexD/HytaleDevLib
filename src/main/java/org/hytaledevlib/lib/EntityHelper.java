@@ -504,6 +504,8 @@ public class EntityHelper {
      * This retrieves the player's respawn position (typically their bed location or world spawn).
      * Uses the same logic as HomeOrSpawnPoint.respawnPlayer() to get the player's home base.
      * 
+     * Note: This method blocks to wait for the async result. For async usage, use getPlayerRespawnPositionAsync().
+     * 
      * @param player The player entity
      * @return The player's respawn position as a Transform, or null if not available
      */
@@ -526,18 +528,58 @@ public class EntityHelper {
             com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
                 entityStore.getStore();
             
-            // Call Player.getRespawnPosition() static method
-            com.hypixel.hytale.math.vector.Transform respawnTransform = 
+            // Call Player.getRespawnPosition() static method (now returns CompletableFuture)
+            java.util.concurrent.CompletableFuture<com.hypixel.hytale.math.vector.Transform> future = 
                 com.hypixel.hytale.server.core.entity.entities.Player.getRespawnPosition(
                     playerRef, 
                     worldName, 
                     store
                 );
             
-            return respawnTransform;
+            // Block and wait for the result (with timeout to avoid hanging)
+            return future.get(5, java.util.concurrent.TimeUnit.SECONDS);
             
         } catch (Exception e) {
             return null;
+        }
+    }
+    
+    /**
+     * Get the player's respawn/home position asynchronously.
+     * 
+     * This is the async version that returns a CompletableFuture for non-blocking usage.
+     * 
+     * @param player The player entity
+     * @return A CompletableFuture that will complete with the player's respawn position, or null if not available
+     */
+    public static java.util.concurrent.CompletableFuture<com.hypixel.hytale.math.vector.Transform> getPlayerRespawnPositionAsync(Entity player) {
+        if (player == null || !isPlayer(player)) {
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
+        }
+        
+        try {
+            World world = player.getWorld();
+            if (world == null) {
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
+            }
+            
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> playerRef = 
+                player.getReference();
+            String worldName = world.getName();
+            
+            com.hypixel.hytale.server.core.universe.world.storage.EntityStore entityStore = world.getEntityStore();
+            com.hypixel.hytale.component.Store<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> store = 
+                entityStore.getStore();
+            
+            // Call Player.getRespawnPosition() static method
+            return com.hypixel.hytale.server.core.entity.entities.Player.getRespawnPosition(
+                playerRef, 
+                worldName, 
+                store
+            );
+            
+        } catch (Exception e) {
+            return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
     }
     
