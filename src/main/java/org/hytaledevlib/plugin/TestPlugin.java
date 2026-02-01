@@ -68,6 +68,12 @@ public class TestPlugin extends JavaPlugin {
                     // Register mob loot test (uses DeathHelper callback)
                     registerMobLootTest(world);
                     
+                    // Register fluid detection test
+                    registerFluidDetectionTest(world);
+                    
+                    // Register water placement test
+                    registerWaterPlacementTest(world);
+                    
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
                     // String blockListPath = "wiki/BlockList.md";
@@ -1915,6 +1921,173 @@ public class TestPlugin extends JavaPlugin {
         
         LOGGER.at(Level.INFO).log("Item entity teleport test scheduled!");
         LOGGER.at(Level.INFO).log("========================================");
+    }
+    
+    /**
+     * Register fluid detection test - logs water blocks near the player every 50 ticks.
+     */
+    private void registerFluidDetectionTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering Fluid Detection test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Wait 50 ticks before starting the recurring check
+        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 50, () -> {
+            LOGGER.at(Level.INFO).log("🌊 Starting fluid detection checks...");
+            scheduleFluidCheck(world);
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Fluid detection test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Will start checking in 50 ticks (2.5 seconds)");
+        LOGGER.at(Level.INFO).log("  ✓ Then checks every 50 ticks for water blocks");
+        LOGGER.at(Level.INFO).log("  ✓ Checks 5-block radius around each player");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Schedule a recurring fluid check every 50 ticks.
+     */
+    private void scheduleFluidCheck(World world) {
+        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 50, () -> {
+            // Find all players
+            for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
+                if (org.hytaledevlib.lib.EntityHelper.isPlayer(entity)) {
+                    String playerName = org.hytaledevlib.lib.EntityHelper.getName(entity);
+                    com.hypixel.hytale.math.vector.Vector3d playerPos = org.hytaledevlib.lib.EntityHelper.getPosition(entity);
+                    
+                    if (playerPos == null) {
+                        continue;
+                    }
+                    
+                    // Check for water in a 5-block radius around the player
+                    int radius = 5;
+                    java.util.List<org.hytaledevlib.lib.BlockHelper.FluidPosition> waterBlocks = new java.util.ArrayList<>();
+                    
+                    int playerX = (int) playerPos.getX();
+                    int playerY = (int) playerPos.getY();
+                    int playerZ = (int) playerPos.getZ();
+                    
+                    // Debug: Check a few specific positions
+                    LOGGER.at(Level.INFO).log("[FluidDebug] Checking positions around player at (" + playerX + ", " + playerY + ", " + playerZ + ")");
+                    
+                    for (int x = playerX - radius; x <= playerX + radius; x++) {
+                        for (int y = playerY - radius; y <= playerY + radius; y++) {
+                            for (int z = playerZ - radius; z <= playerZ + radius; z++) {
+                                int fluidId = org.hytaledevlib.lib.BlockHelper.getFluidId(world, x, y, z);
+                                
+                                // Debug: Log first few fluid checks
+                                if (waterBlocks.size() < 3 && fluidId != 0) {
+                                    String fluidName = org.hytaledevlib.lib.BlockHelper.getFluidName(world, x, y, z);
+                                    LOGGER.at(Level.INFO).log("[FluidDebug] Found fluid at (" + x + ", " + y + ", " + z + ") - ID: " + fluidId + ", Name: " + fluidName);
+                                }
+                                
+                                if (org.hytaledevlib.lib.BlockHelper.isWater(world, x, y, z)) {
+                                    byte fluidLevel = org.hytaledevlib.lib.BlockHelper.getFluidLevel(world, x, y, z);
+                                    waterBlocks.add(new org.hytaledevlib.lib.BlockHelper.FluidPosition(x, y, z, fluidId, fluidLevel));
+                                }
+                            }
+                        }
+                    }
+                    
+                    LOGGER.at(Level.INFO).log("[FluidDebug] Scan complete. Found " + waterBlocks.size() + " water blocks");
+                    
+                    // Log water blocks found
+                    if (!waterBlocks.isEmpty()) {
+                        LOGGER.at(Level.INFO).log("💧 [" + playerName + "] Found " + waterBlocks.size() + " water blocks within " + radius + " blocks:");
+                        
+                        // Log first 5 water blocks to avoid spam
+                        int count = 0;
+                        for (org.hytaledevlib.lib.BlockHelper.FluidPosition fluid : waterBlocks) {
+                            if (count >= 5) {
+                                LOGGER.at(Level.INFO).log("  ... and " + (waterBlocks.size() - 5) + " more");
+                                break;
+                            }
+                            String fluidName = org.hytaledevlib.lib.BlockHelper.getFluidName(world, fluid.x, fluid.y, fluid.z);
+                            
+                            // Get the Fluid object to see its asset ID
+                            com.hypixel.hytale.server.core.asset.type.fluid.Fluid fluidObj = org.hytaledevlib.lib.BlockHelper.getFluid(world, fluid.x, fluid.y, fluid.z);
+                            String assetId = fluidObj != null ? fluidObj.getId() : "unknown";
+                            
+                            LOGGER.at(Level.INFO).log("  - " + fluidName + " (Asset: " + assetId + ", ID: " + fluid.fluidId + ") at (" + fluid.x + ", " + fluid.y + ", " + fluid.z + ") level=" + fluid.fluidLevel);
+                            count++;
+                        }
+                    } else {
+                        LOGGER.at(Level.INFO).log("[" + playerName + "] No water blocks nearby (checked 5-block radius)");
+                    }
+                }
+            }
+            
+            // Schedule the next check (recursive)
+            scheduleFluidCheck(world);
+        });
+    }
+    
+    /**
+     * Register water placement test - places water beneath the player after 200 ticks.
+     */
+    private void registerWaterPlacementTest(World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering Water Placement test...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Wait 200 ticks before placing water
+        org.hytaledevlib.lib.WorldHelper.waitTicks(world, 200, () -> {
+            LOGGER.at(Level.INFO).log("💧 Placing water beneath players...");
+            
+            // Find all players
+            for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
+                if (org.hytaledevlib.lib.EntityHelper.isPlayer(entity)) {
+                    String playerName = org.hytaledevlib.lib.EntityHelper.getName(entity);
+                    com.hypixel.hytale.math.vector.Vector3d playerPos = org.hytaledevlib.lib.EntityHelper.getPosition(entity);
+                    
+                    if (playerPos == null) {
+                        continue;
+                    }
+                    
+                    // Place water one block beneath the player
+                    int waterX = (int) playerPos.getX();
+                    int waterY = (int) playerPos.getY() - 1;
+                    int waterZ = (int) playerPos.getZ();
+                    
+                    boolean placed = org.hytaledevlib.lib.BlockHelper.placeWater(world, waterX, waterY, waterZ);
+                    
+                    if (placed) {
+                        LOGGER.at(Level.INFO).log("✅ [" + playerName + "] Placed water at (" + waterX + ", " + waterY + ", " + waterZ + ")");
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Water placed beneath you!");
+                    } else {
+                        LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place water at (" + waterX + ", " + waterY + ", " + waterZ + ")");
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Failed to place water!");
+                    }
+                    
+                    // Test: Try placing Fluid_Water as a block instead
+                    int blockWaterX = (int) playerPos.getX() + 1;
+                    int blockWaterY = (int) playerPos.getY() - 1;
+                    int blockWaterZ = (int) playerPos.getZ();
+                    
+                    LOGGER.at(Level.INFO).log("🧪 [" + playerName + "] Testing Fluid_Water block placement at (" + blockWaterX + ", " + blockWaterY + ", " + blockWaterZ + ")");
+                    int fluidWaterBlockId = org.hytaledevlib.lib.BlockHelper.getBlockId("Fluid_Water");
+                    
+                    if (fluidWaterBlockId != -1) {
+                        boolean blockPlaced = org.hytaledevlib.lib.BlockHelper.setBlock(world, blockWaterX, blockWaterY, blockWaterZ, fluidWaterBlockId);
+                        
+                        if (blockPlaced) {
+                            LOGGER.at(Level.INFO).log("✅ [" + playerName + "] Placed Fluid_Water BLOCK successfully!");
+                            org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Fluid_Water block placed next to you!");
+                        } else {
+                            LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place Fluid_Water block");
+                        }
+                    } else {
+                        LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Fluid_Water block not found in asset map");
+                    }
+                }
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Water placement test registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Will place water beneath players in 200 ticks (10 seconds)");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
     }
     
     /**

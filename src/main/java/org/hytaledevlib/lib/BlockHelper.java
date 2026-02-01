@@ -4,8 +4,15 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
+import com.hypixel.hytale.server.core.asset.type.fluid.Fluid;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.BlockChunk;
+import com.hypixel.hytale.server.core.universe.world.chunk.ChunkColumn;
+import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
+import com.hypixel.hytale.server.core.universe.world.chunk.section.FluidSection;
+import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -299,6 +306,69 @@ public class BlockHelper {
             world.getNotificationHandler().sendPacketIfChunkLoaded(packet, x, z);
         } catch (Exception e) {
             // Silently fail - block was set but notification failed
+        }
+    }
+    
+    /**
+     * Send a fluid update packet to all clients who have the chunk loaded.
+     * Uses the same pattern as sendBlockUpdateToClients.
+     */
+    private static void sendFluidUpdateToClients(World world, int x, int y, int z, int fluidId, byte level) {
+        try {
+            // Try to create and send a fluid update packet
+            // The exact packet class/constructor may vary, so we catch any errors
+            Object packet = createFluidPacket(x, y, z, fluidId, level);
+            if (packet != null && packet instanceof com.hypixel.hytale.protocol.Packet) {
+                System.out.println("[BlockHelper] Sending fluid update packet for fluid ID " + fluidId + " at (" + x + ", " + y + ", " + z + ")");
+                world.getNotificationHandler().sendPacketIfChunkLoaded((com.hypixel.hytale.protocol.Packet) packet, x, z);
+                System.out.println("[BlockHelper] Packet sent successfully");
+            } else {
+                System.out.println("[BlockHelper] WARNING: Could not create fluid packet (packet was null or not a Packet instance)");
+            }
+        } catch (Exception e) {
+            System.out.println("[BlockHelper] ERROR sending fluid update: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Attempt to create a fluid update packet using reflection to handle API changes.
+     */
+    private static Object createFluidPacket(int x, int y, int z, int fluidId, byte level) {
+        try {
+            // Try SetFluids packet (bulk update with single change)
+            Class<?> setFluidsClass = Class.forName("com.hypixel.hytale.protocol.packets.world.SetFluids");
+            
+            int chunkX = ChunkUtil.chunkCoordinate(x);
+            int chunkY = ChunkUtil.chunkCoordinate(y);
+            int chunkZ = ChunkUtil.chunkCoordinate(z);
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localY = y & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            
+            int positionIndex = ChunkUtil.indexBlock(localX, localY, localZ);
+            int[] changes = new int[] { positionIndex };
+            
+            // Try different constructor signatures
+            try {
+                return setFluidsClass.getConstructor(int.class, int.class, int.class, int[].class, int.class, byte.class)
+                    .newInstance(chunkX, chunkY, chunkZ, changes, fluidId, level);
+            } catch (NoSuchMethodException e1) {
+                // Try without byte, using int for level
+                try {
+                    return setFluidsClass.getConstructor(int.class, int.class, int.class, int[].class, int.class, int.class)
+                        .newInstance(chunkX, chunkY, chunkZ, changes, fluidId, (int) level);
+                } catch (NoSuchMethodException e2) {
+                    // Packet class exists but constructor signature unknown
+                    return null;
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            // SetFluids packet doesn't exist in this version
+            return null;
+        } catch (Exception e) {
+            return null;
         }
     }
     
@@ -733,6 +803,627 @@ public class BlockHelper {
         }
         
         return count;
+    }
+    
+    // ==================== FLUID DETECTION METHODS ====================
+    
+    /**
+     * Get the fluid ID at a specific position.
+     * Fluids are stored separately from blocks in Hytale's chunk system.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The fluid ID, or 0 if no fluid present
+     */
+    public static int getFluidId(World world, Vector3d position) {
+        return getFluidId(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Get the fluid ID at specific coordinates.
+     * Fluids use a separate FluidSection component system.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The fluid ID, or 0 if no fluid present
+     */
+    public static int getFluidId(World world, int x, int y, int z) {
+        if (world == null || y < 0 || y >= 320) {
+            return 0;
+        }
+        
+        try {
+            long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+            ChunkStore chunkStore = world.getChunkStore();
+            
+            Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
+            if (chunkRef == null || !chunkRef.isValid()) {
+                return 0;
+            }
+            
+            Store<ChunkStore> store = chunkRef.getStore();
+            ChunkColumn chunkColumn = store.getComponent(chunkRef, ChunkColumn.getComponentType());
+            if (chunkColumn == null) {
+                return 0;
+            }
+            
+            Ref<ChunkStore> sectionRef = chunkColumn.getSection(ChunkUtil.chunkCoordinate(y));
+            if (sectionRef == null || !sectionRef.isValid()) {
+                return 0;
+            }
+            
+            FluidSection fluidSection = store.getComponent(sectionRef, FluidSection.getComponentType());
+            if (fluidSection == null) {
+                return 0;
+            }
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localY = y & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            return fluidSection.getFluidId(localX, localY, localZ);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Get the fluid level at a specific position.
+     * Fluid levels range from 0-255, where higher values indicate fuller fluid blocks.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The fluid level (0-255), or 0 if no fluid present
+     */
+    public static byte getFluidLevel(World world, Vector3d position) {
+        return getFluidLevel(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Get the fluid level at specific coordinates.
+     * Fluid levels range from 0-255, where higher values indicate fuller fluid blocks.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The fluid level (0-255), or 0 if no fluid present
+     */
+    public static byte getFluidLevel(World world, int x, int y, int z) {
+        if (world == null || y < 0 || y >= 320) {
+            return 0;
+        }
+        
+        try {
+            long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+            ChunkStore chunkStore = world.getChunkStore();
+            
+            Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
+            if (chunkRef == null || !chunkRef.isValid()) {
+                return 0;
+            }
+            
+            Store<ChunkStore> store = chunkRef.getStore();
+            ChunkColumn chunkColumn = store.getComponent(chunkRef, ChunkColumn.getComponentType());
+            if (chunkColumn == null) {
+                return 0;
+            }
+            
+            Ref<ChunkStore> sectionRef = chunkColumn.getSection(ChunkUtil.chunkCoordinate(y));
+            if (sectionRef == null || !sectionRef.isValid()) {
+                return 0;
+            }
+            
+            FluidSection fluidSection = store.getComponent(sectionRef, FluidSection.getComponentType());
+            if (fluidSection == null) {
+                return 0;
+            }
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localY = y & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            return fluidSection.getFluidLevel(localX, localY, localZ);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+    
+    /**
+     * Check if a position contains any fluid.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return true if any fluid is present, false otherwise
+     */
+    public static boolean hasFluid(World world, Vector3d position) {
+        return getFluidId(world, position) != 0;
+    }
+    
+    /**
+     * Check if a position contains any fluid.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if any fluid is present, false otherwise
+     */
+    public static boolean hasFluid(World world, int x, int y, int z) {
+        return getFluidId(world, x, y, z) != 0;
+    }
+    
+    /**
+     * Get the Fluid asset at a specific position.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The Fluid object, or null if no fluid present
+     */
+    public static Fluid getFluid(World world, Vector3d position) {
+        return getFluid(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Get the Fluid asset at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The Fluid object, or null if no fluid present
+     */
+    public static Fluid getFluid(World world, int x, int y, int z) {
+        int fluidId = getFluidId(world, x, y, z);
+        if (fluidId == 0) {
+            return null;
+        }
+        
+        try {
+            // Use Fluid.getAssetMap(), NOT BlockType.getAssetMap()!
+            return Fluid.getAssetMap().getAsset(fluidId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the name of the fluid at a position.
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return The fluid name/ID string, or null if no fluid present
+     */
+    public static String getFluidName(World world, Vector3d position) {
+        return getFluidName(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Get the name of the fluid at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return The fluid name/ID string, or null if no fluid present
+     */
+    public static String getFluidName(World world, int x, int y, int z) {
+        Fluid fluid = getFluid(world, x, y, z);
+        return fluid != null ? fluid.getId() : null;
+    }
+    
+    /**
+     * Check if a position contains water.
+     * Checks if the fluid name contains "water" (case-insensitive).
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return true if water is present, false otherwise
+     */
+    public static boolean isWater(World world, Vector3d position) {
+        return isWater(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Check if a position contains water.
+     * Checks if the fluid name contains "water" (case-insensitive).
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if water is present, false otherwise
+     */
+    public static boolean isWater(World world, int x, int y, int z) {
+        Fluid fluid = getFluid(world, x, y, z);
+        if (fluid == null) {
+            return false;
+        }
+        
+        String fluidName = fluid.getId().toLowerCase();
+        return fluidName.contains("water");
+    }
+    
+    /**
+     * Check if a position contains lava.
+     * Checks if the fluid name contains "lava" (case-insensitive).
+     * 
+     * @param world The world
+     * @param position The position to check
+     * @return true if lava is present, false otherwise
+     */
+    public static boolean isLava(World world, Vector3d position) {
+        return isLava(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Check if a position contains lava.
+     * Checks if the fluid name contains "lava" (case-insensitive).
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if lava is present, false otherwise
+     */
+    public static boolean isLava(World world, int x, int y, int z) {
+        Fluid fluid = getFluid(world, x, y, z);
+        if (fluid == null) {
+            return false;
+        }
+        
+        String fluidName = fluid.getId().toLowerCase();
+        return fluidName.contains("lava");
+    }
+    
+    /**
+     * Find the surface Y coordinate of a fluid at X,Z coordinates.
+     * Searches upward from startY to find the top of the fluid.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param z Z coordinate
+     * @param startY Starting Y coordinate to search from
+     * @return The Y coordinate of the fluid surface, or -1 if no fluid found
+     */
+    public static int findFluidSurface(World world, int x, int z, int startY) {
+        if (world == null || startY < 0 || startY >= 320) {
+            return -1;
+        }
+        
+        // Check if current position has fluid
+        if (getFluidId(world, x, startY, z) != 0) {
+            // Search upward for the top
+            int y = startY;
+            while (y < 319 && getFluidId(world, x, y + 1, z) != 0) {
+                y++;
+            }
+            return y;
+        }
+        
+        return -1;
+    }
+    
+    /**
+     * Find all fluid blocks in a region.
+     * 
+     * @param world The world
+     * @param pos1 First corner of the region
+     * @param pos2 Second corner of the region
+     * @return List of positions containing fluids
+     */
+    public static List<FluidPosition> findFluidsInRegion(World world, Vector3d pos1, Vector3d pos2) {
+        List<FluidPosition> fluids = new ArrayList<>();
+        
+        if (world == null || pos1 == null || pos2 == null) {
+            return fluids;
+        }
+        
+        int minX = (int) Math.min(pos1.getX(), pos2.getX());
+        int maxX = (int) Math.max(pos1.getX(), pos2.getX());
+        int minY = (int) Math.min(pos1.getY(), pos2.getY());
+        int maxY = (int) Math.max(pos1.getY(), pos2.getY());
+        int minZ = (int) Math.min(pos1.getZ(), pos2.getZ());
+        int maxZ = (int) Math.max(pos1.getZ(), pos2.getZ());
+        
+        minY = Math.max(0, minY);
+        maxY = Math.min(319, maxY);
+        
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    int fluidId = getFluidId(world, x, y, z);
+                    if (fluidId != 0) {
+                        byte fluidLevel = getFluidLevel(world, x, y, z);
+                        fluids.add(new FluidPosition(x, y, z, fluidId, fluidLevel));
+                    }
+                }
+            }
+        }
+        
+        return fluids;
+    }
+    
+    /**
+     * Count how many fluid blocks exist in a region.
+     * 
+     * @param world The world
+     * @param pos1 First corner of the region
+     * @param pos2 Second corner of the region
+     * @return The number of fluid blocks found
+     */
+    public static int countFluidsInRegion(World world, Vector3d pos1, Vector3d pos2) {
+        if (world == null || pos1 == null || pos2 == null) {
+            return 0;
+        }
+        
+        int minX = (int) Math.min(pos1.getX(), pos2.getX());
+        int maxX = (int) Math.max(pos1.getX(), pos2.getX());
+        int minY = (int) Math.min(pos1.getY(), pos2.getY());
+        int maxY = (int) Math.max(pos1.getY(), pos2.getY());
+        int minZ = (int) Math.min(pos1.getZ(), pos2.getZ());
+        int maxZ = (int) Math.max(pos1.getZ(), pos2.getZ());
+        
+        minY = Math.max(0, minY);
+        maxY = Math.min(319, maxY);
+        
+        int count = 0;
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (getFluidId(world, x, y, z) != 0) {
+                        count++;
+                    }
+                }
+            }
+        }
+        
+        return count;
+    }
+    
+    // ==================== FLUID SETTING METHODS ====================
+    
+    /**
+     * Set fluid at a specific position.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @param fluidId The fluid ID (0 to remove fluid)
+     * @param level Fluid level (0-15, where 15 is full block)
+     * @return true if the fluid was changed, false otherwise
+     */
+    public static boolean setFluid(World world, int x, int y, int z, int fluidId, byte level) {
+        if (world == null || y < 0 || y >= 320) {
+            return false;
+        }
+        
+        try {
+            long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+            ChunkStore chunkStore = world.getChunkStore();
+            
+            Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
+            if (chunkRef == null || !chunkRef.isValid()) {
+                return false;
+            }
+            
+            Store<ChunkStore> store = chunkRef.getStore();
+            ChunkColumn chunkColumn = store.getComponent(chunkRef, ChunkColumn.getComponentType());
+            if (chunkColumn == null) {
+                return false;
+            }
+            
+            Ref<ChunkStore> sectionRef = chunkColumn.getSection(ChunkUtil.chunkCoordinate(y));
+            if (sectionRef == null || !sectionRef.isValid()) {
+                return false;
+            }
+            
+            FluidSection fluidSection = store.ensureAndGetComponent(sectionRef, FluidSection.getComponentType());
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localY = y & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            
+            boolean changed = fluidSection.setFluid(localX, localY, localZ, fluidId, level);
+            
+            if (changed) {
+                WorldChunk worldChunk = store.getComponent(chunkRef, WorldChunk.getComponentType());
+                if (worldChunk != null) {
+                    worldChunk.markNeedsSaving();
+                    worldChunk.setTicking(x, y, z, true);
+                }
+                
+                // Send fluid update to clients (same pattern as setBlock)
+                sendFluidUpdateToClients(world, x, y, z, fluidId, level);
+            }
+            
+            return changed;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Set fluid at a position using a Fluid object.
+     * 
+     * @param world The world
+     * @param position The position
+     * @param fluid The Fluid object (null to remove)
+     * @param level Fluid level (0-15)
+     * @return true if changed
+     */
+    public static boolean setFluid(World world, Vector3d position, Fluid fluid, byte level) {
+        return setFluid(world, (int) position.getX(), (int) position.getY(), (int) position.getZ(), fluid, level);
+    }
+    
+    /**
+     * Set fluid at specific coordinates using a Fluid object.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @param fluid The Fluid object (null to remove)
+     * @param level Fluid level (0-15)
+     * @return true if changed
+     */
+    public static boolean setFluid(World world, int x, int y, int z, Fluid fluid, byte level) {
+        if (fluid == null) {
+            return setFluid(world, x, y, z, 0, (byte) 0);
+        }
+        
+        int fluidId = Fluid.getAssetMap().getIndex(fluid.getId());
+        return setFluid(world, x, y, z, fluidId, level);
+    }
+    
+    /**
+     * Place a full water block at a position.
+     * 
+     * @param world The world
+     * @param position The position
+     * @return true if water was placed
+     */
+    public static boolean placeWater(World world, Vector3d position) {
+        return placeWater(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Place a full water block at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if water was placed
+     */
+    public static boolean placeWater(World world, int x, int y, int z) {
+        // Use Fluid_Water block (this is what appears in creative menu and works visually)
+        int waterBlockId = getBlockId("Fluid_Water");
+        
+        if (waterBlockId == -1) {
+            System.out.println("[BlockHelper] ERROR: Could not find Fluid_Water block in asset map!");
+            return false;
+        }
+        
+        // Place the water block
+        boolean placed = setBlock(world, x, y, z, waterBlockId);
+        
+        if (placed) {
+            // Try to trigger water physics by marking the chunk for ticking
+            try {
+                long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+                ChunkStore chunkStore = world.getChunkStore();
+                Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
+                
+                if (chunkRef != null && chunkRef.isValid()) {
+                    Store<ChunkStore> store = chunkRef.getStore();
+                    WorldChunk worldChunk = store.getComponent(chunkRef, WorldChunk.getComponentType());
+                    if (worldChunk != null) {
+                        // Enable ticking for this position to trigger water flow
+                        worldChunk.setTicking(x, y, z, true);
+                    }
+                }
+            } catch (Exception e) {
+                // Water was placed but ticking setup failed
+                System.out.println("[BlockHelper] Water placed but ticking setup failed: " + e.getMessage());
+            }
+        }
+        
+        return placed;
+    }
+    
+    /**
+     * Place a full lava block at a position.
+     * 
+     * @param world The world
+     * @param position The position
+     * @return true if lava was placed
+     */
+    public static boolean placeLava(World world, Vector3d position) {
+        return placeLava(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Place a full lava block at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if lava was placed
+     */
+    public static boolean placeLava(World world, int x, int y, int z) {
+        // Use Lava_Source for source blocks (ID: 6)
+        Fluid lava = Fluid.getAssetMap().getAsset("Lava_Source");
+        if (lava == null) {
+            // Fallback to flowing lava (ID: 11)
+            lava = Fluid.getAssetMap().getAsset("lava");
+        }
+        
+        if (lava == null) {
+            System.out.println("[BlockHelper] ERROR: Could not find lava fluid in asset map!");
+            return false;
+        }
+        
+        return setFluid(world, x, y, z, lava, (byte) 15);
+    }
+    
+    /**
+     * Remove fluid at a position.
+     * 
+     * @param world The world
+     * @param position The position
+     * @return true if fluid was removed
+     */
+    public static boolean removeFluid(World world, Vector3d position) {
+        return removeFluid(world, (int) position.getX(), (int) position.getY(), (int) position.getZ());
+    }
+    
+    /**
+     * Remove fluid at specific coordinates.
+     * 
+     * @param world The world
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param z Z coordinate
+     * @return true if fluid was removed
+     */
+    public static boolean removeFluid(World world, int x, int y, int z) {
+        return setFluid(world, x, y, z, 0, (byte) 0);
+    }
+    
+    /**
+     * Class to hold fluid position and data information.
+     */
+    public static class FluidPosition {
+        public final int x;
+        public final int y;
+        public final int z;
+        public final int fluidId;
+        public final byte fluidLevel;
+        
+        public FluidPosition(int x, int y, int z, int fluidId, byte fluidLevel) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.fluidId = fluidId;
+            this.fluidLevel = fluidLevel;
+        }
+        
+        public Vector3i toVector3i() {
+            return new Vector3i(x, y, z);
+        }
+        
+        public Vector3d toVector3d() {
+            return new Vector3d(x, y, z);
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("FluidPosition{x=%d, y=%d, z=%d, fluidId=%d, fluidLevel=%d}", 
+                x, y, z, fluidId, fluidLevel);
+        }
     }
     
     /**
