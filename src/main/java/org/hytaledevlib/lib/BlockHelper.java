@@ -1322,14 +1322,8 @@ public class BlockHelper {
         
         try {
             // Natural water = Empty block (air, ID 0) + Fluid data
-            // Step 1: Set block to AIR (block ID 0)
-            boolean blockSet = setBlock(world, x, y, z, 0);
-            if (!blockSet) {
-                System.out.println("[BlockHelper] Failed to set air block for water");
-                return false;
-            }
             
-            // Step 2: Set fluid data to Water_Source
+            // Get water fluid first
             Fluid water = Fluid.getAssetMap().getAsset("Water_Source");
             if (water == null) {
                 water = Fluid.getAssetMap().getAsset("water");
@@ -1341,14 +1335,77 @@ public class BlockHelper {
             }
             
             int waterFluidId = Fluid.getAssetMap().getIndex(water.getId());
-            boolean fluidSet = setFluid(world, x, y, z, waterFluidId, (byte) 15);
+            
+            // Step 1: Set block to AIR on server (WITHOUT sending packet yet)
+            long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
+            ChunkStore chunkStore = world.getChunkStore();
+            BlockChunk blockChunk = chunkStore.getChunkComponent(chunkPos, BlockChunk.getComponentType());
+            
+            if (blockChunk == null) {
+                System.out.println("[BlockHelper] Failed to get block chunk");
+                return false;
+            }
+            
+            int localX = x & ChunkUtil.SIZE_MASK;
+            int localZ = z & ChunkUtil.SIZE_MASK;
+            
+            // Set air block on server
+            boolean blockSet = blockChunk.setBlock(localX, y, localZ, 0, 0, 0);
+            if (!blockSet) {
+                System.out.println("[BlockHelper] Failed to set air block for water");
+                return false;
+            }
+            
+            // Step 2: Set fluid data on server (WITHOUT sending packet yet)
+            Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
+            if (chunkRef == null || !chunkRef.isValid()) {
+                System.out.println("[BlockHelper] Failed to get chunk reference");
+                return false;
+            }
+            
+            Store<ChunkStore> store = chunkRef.getStore();
+            ChunkColumn chunkColumn = store.getComponent(chunkRef, ChunkColumn.getComponentType());
+            if (chunkColumn == null) {
+                System.out.println("[BlockHelper] Failed to get chunk column");
+                return false;
+            }
+            
+            Ref<ChunkStore> sectionRef = chunkColumn.getSection(ChunkUtil.chunkCoordinate(y));
+            if (sectionRef == null || !sectionRef.isValid()) {
+                System.out.println("[BlockHelper] Failed to get section reference");
+                return false;
+            }
+            
+            FluidSection fluidSection = store.ensureAndGetComponent(sectionRef, FluidSection.getComponentType());
+            
+            int localY = y & ChunkUtil.SIZE_MASK;
+            
+            // Set fluid on server - use level 1 for water source (not 15)
+            boolean fluidSet = fluidSection.setFluid(localX, localY, localZ, waterFluidId, (byte) 1);
             
             if (!fluidSet) {
                 System.out.println("[BlockHelper] Failed to set fluid data for water");
                 return false;
             }
             
-            System.out.println("[BlockHelper] Successfully placed water (empty block + fluid ID " + waterFluidId + ")");
+            // Mark chunk for saving and enable ticking
+            WorldChunk worldChunk = store.getComponent(chunkRef, WorldChunk.getComponentType());
+            if (worldChunk != null) {
+                worldChunk.markNeedsSaving();
+                worldChunk.setTicking(x, y, z, true);
+            }
+            
+            System.out.println("[BlockHelper] Server-side water placed (empty block + fluid ID " + waterFluidId + ")");
+            
+            // Step 3: Send packets to clients - FLUID FIRST, then BLOCK
+            // Use level 1 for water source (matches natural water sources)
+            sendFluidUpdateToClients(world, x, y, z, waterFluidId, (byte) 1);
+            System.out.println("[BlockHelper] Sent fluid update to clients");
+            
+            sendBlockUpdateToClients(world, x, y, z, 0, (short) 0, (byte) 0);
+            System.out.println("[BlockHelper] Sent block update (air) to clients");
+            
+            System.out.println("[BlockHelper] Successfully placed water with client updates");
             return true;
             
         } catch (Exception e) {
