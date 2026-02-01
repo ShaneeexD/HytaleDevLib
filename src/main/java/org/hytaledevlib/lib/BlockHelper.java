@@ -348,26 +348,44 @@ public class BlockHelper {
             int localZ = z & ChunkUtil.SIZE_MASK;
             
             int positionIndex = ChunkUtil.indexBlock(localX, localY, localZ);
-            int[] changes = new int[] { positionIndex };
             
-            // Try different constructor signatures
+            // Use the actual constructor: SetFluids(int chunkX, int chunkY, int chunkZ, byte[] data)
+            // The byte array contains the fluid data encoded
             try {
-                return setFluidsClass.getConstructor(int.class, int.class, int.class, int[].class, int.class, byte.class)
-                    .newInstance(chunkX, chunkY, chunkZ, changes, fluidId, level);
-            } catch (NoSuchMethodException e1) {
-                // Try without byte, using int for level
-                try {
-                    return setFluidsClass.getConstructor(int.class, int.class, int.class, int[].class, int.class, int.class)
-                        .newInstance(chunkX, chunkY, chunkZ, changes, fluidId, (int) level);
-                } catch (NoSuchMethodException e2) {
-                    // Packet class exists but constructor signature unknown
-                    return null;
-                }
+                // Create a byte array to hold the fluid data
+                // Format appears to be: position indices + fluid ID + level
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                java.io.DataOutputStream dos = new java.io.DataOutputStream(baos);
+                
+                // Write the number of changes
+                dos.writeInt(1); // 1 change
+                
+                // Write the position index
+                dos.writeInt(positionIndex);
+                
+                // Write fluid ID
+                dos.writeInt(fluidId);
+                
+                // Write fluid level
+                dos.writeByte(level);
+                
+                byte[] data = baos.toByteArray();
+                
+                System.out.println("[BlockHelper] Creating SetFluids packet with byte array (length: " + data.length + ")");
+                
+                return setFluidsClass.getConstructor(int.class, int.class, int.class, byte[].class)
+                    .newInstance(chunkX, chunkY, chunkZ, data);
+                    
+            } catch (NoSuchMethodException e) {
+                System.out.println("[BlockHelper] Constructor (int, int, int, byte[]) not found!");
+                return null;
             }
         } catch (ClassNotFoundException e) {
-            // SetFluids packet doesn't exist in this version
+            System.out.println("[BlockHelper] SetFluids class not found");
             return null;
         } catch (Exception e) {
+            System.out.println("[BlockHelper] Error creating packet: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
@@ -1298,39 +1316,46 @@ public class BlockHelper {
      * @return true if water was placed
      */
     public static boolean placeWater(World world, int x, int y, int z) {
-        // Use Fluid_Water block (this is what appears in creative menu and works visually)
-        int waterBlockId = getBlockId("Fluid_Water");
-        
-        if (waterBlockId == -1) {
-            System.out.println("[BlockHelper] ERROR: Could not find Fluid_Water block in asset map!");
+        if (world == null || y < 0 || y >= 320) {
             return false;
         }
         
-        // Place the water block
-        boolean placed = setBlock(world, x, y, z, waterBlockId);
-        
-        if (placed) {
-            // Try to trigger water physics by marking the chunk for ticking
-            try {
-                long chunkPos = ChunkUtil.indexChunkFromBlock(x, z);
-                ChunkStore chunkStore = world.getChunkStore();
-                Ref<ChunkStore> chunkRef = chunkStore.getChunkReference(chunkPos);
-                
-                if (chunkRef != null && chunkRef.isValid()) {
-                    Store<ChunkStore> store = chunkRef.getStore();
-                    WorldChunk worldChunk = store.getComponent(chunkRef, WorldChunk.getComponentType());
-                    if (worldChunk != null) {
-                        // Enable ticking for this position to trigger water flow
-                        worldChunk.setTicking(x, y, z, true);
-                    }
-                }
-            } catch (Exception e) {
-                // Water was placed but ticking setup failed
-                System.out.println("[BlockHelper] Water placed but ticking setup failed: " + e.getMessage());
+        try {
+            // Natural water = Empty block (air, ID 0) + Fluid data
+            // Step 1: Set block to AIR (block ID 0)
+            boolean blockSet = setBlock(world, x, y, z, 0);
+            if (!blockSet) {
+                System.out.println("[BlockHelper] Failed to set air block for water");
+                return false;
             }
+            
+            // Step 2: Set fluid data to Water_Source
+            Fluid water = Fluid.getAssetMap().getAsset("Water_Source");
+            if (water == null) {
+                water = Fluid.getAssetMap().getAsset("water");
+            }
+            
+            if (water == null) {
+                System.out.println("[BlockHelper] ERROR: Could not find water fluid!");
+                return false;
+            }
+            
+            int waterFluidId = Fluid.getAssetMap().getIndex(water.getId());
+            boolean fluidSet = setFluid(world, x, y, z, waterFluidId, (byte) 15);
+            
+            if (!fluidSet) {
+                System.out.println("[BlockHelper] Failed to set fluid data for water");
+                return false;
+            }
+            
+            System.out.println("[BlockHelper] Successfully placed water (empty block + fluid ID " + waterFluidId + ")");
+            return true;
+            
+        } catch (Exception e) {
+            System.out.println("[BlockHelper] Error placing water: " + e.getMessage());
+            e.printStackTrace();
+            return false;
         }
-        
-        return placed;
     }
     
     /**

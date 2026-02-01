@@ -2059,27 +2059,6 @@ public class TestPlugin extends JavaPlugin {
                         LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place water at (" + waterX + ", " + waterY + ", " + waterZ + ")");
                         org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Failed to place water!");
                     }
-                    
-                    // Test: Try placing Fluid_Water as a block instead
-                    int blockWaterX = (int) playerPos.getX() + 1;
-                    int blockWaterY = (int) playerPos.getY() - 1;
-                    int blockWaterZ = (int) playerPos.getZ();
-                    
-                    LOGGER.at(Level.INFO).log("🧪 [" + playerName + "] Testing Fluid_Water block placement at (" + blockWaterX + ", " + blockWaterY + ", " + blockWaterZ + ")");
-                    int fluidWaterBlockId = org.hytaledevlib.lib.BlockHelper.getBlockId("Fluid_Water");
-                    
-                    if (fluidWaterBlockId != -1) {
-                        boolean blockPlaced = org.hytaledevlib.lib.BlockHelper.setBlock(world, blockWaterX, blockWaterY, blockWaterZ, fluidWaterBlockId);
-                        
-                        if (blockPlaced) {
-                            LOGGER.at(Level.INFO).log("✅ [" + playerName + "] Placed Fluid_Water BLOCK successfully!");
-                            org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Fluid_Water block placed next to you!");
-                        } else {
-                            LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place Fluid_Water block");
-                        }
-                    } else {
-                        LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Fluid_Water block not found in asset map");
-                    }
                 }
             }
         });
