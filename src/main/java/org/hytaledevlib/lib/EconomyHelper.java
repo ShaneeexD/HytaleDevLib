@@ -549,4 +549,170 @@ public class EconomyHelper {
             false
         ));
     }
+    
+    // ==================== PERSISTENCE ====================
+    
+    /**
+     * Data structure for saving economy data
+     */
+    private static class EconomySaveData {
+        Map<String, Map<String, Double>> playerBalances = new HashMap<>();
+        Map<String, List<Transaction>> playerTransactions = new HashMap<>();
+    }
+    
+    /**
+     * Save all economy data to disk.
+     * 
+     * @return true if save was successful
+     */
+    public static boolean saveEconomyData() {
+        EconomySaveData saveData = new EconomySaveData();
+        
+        // Convert UUID keys to strings for JSON serialization
+        for (Map.Entry<UUID, Map<String, Double>> entry : balances.entrySet()) {
+            saveData.playerBalances.put(entry.getKey().toString(), entry.getValue());
+        }
+        
+        for (Map.Entry<UUID, List<Transaction>> entry : transactionHistory.entrySet()) {
+            saveData.playerTransactions.put(entry.getKey().toString(), entry.getValue());
+        }
+        
+        return DataHelper.saveJson("economy/data.json", saveData);
+    }
+    
+    /**
+     * Save economy data asynchronously.
+     */
+    public static void saveEconomyDataAsync() {
+        DataHelper.saveJsonAsync("economy/data.json", createSaveData())
+            .thenAccept(success -> {
+                if (success) {
+                    // Success logged by DataHelper
+                } else {
+                    // Error logged by DataHelper
+                }
+            });
+    }
+    
+    /**
+     * Load all economy data from disk.
+     * 
+     * @return true if load was successful
+     */
+    public static boolean loadEconomyData() {
+        EconomySaveData saveData = DataHelper.loadJson("economy/data.json", EconomySaveData.class);
+        
+        if (saveData == null) {
+            return false;
+        }
+        
+        // Clear existing data
+        balances.clear();
+        transactionHistory.clear();
+        
+        // Convert string keys back to UUIDs
+        if (saveData.playerBalances != null) {
+            for (Map.Entry<String, Map<String, Double>> entry : saveData.playerBalances.entrySet()) {
+                try {
+                    UUID playerUuid = UUID.fromString(entry.getKey());
+                    balances.put(playerUuid, new ConcurrentHashMap<>(entry.getValue()));
+                } catch (IllegalArgumentException e) {
+                    // Invalid UUID, skip this entry
+                }
+            }
+        }
+        
+        if (saveData.playerTransactions != null) {
+            for (Map.Entry<String, List<Transaction>> entry : saveData.playerTransactions.entrySet()) {
+                try {
+                    UUID playerUuid = UUID.fromString(entry.getKey());
+                    transactionHistory.put(playerUuid, new ArrayList<>(entry.getValue()));
+                } catch (IllegalArgumentException e) {
+                    // Invalid UUID, skip this entry
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Save economy data for a specific player.
+     * 
+     * @param player The player
+     * @return true if save was successful
+     */
+    public static boolean savePlayerEconomyData(Player player) {
+        Map<String, Object> playerData = new HashMap<>();
+        
+        Map<String, Double> playerBalances = balances.get(player.getUuid());
+        if (playerBalances != null) {
+            playerData.put("balances", playerBalances);
+        }
+        
+        List<Transaction> transactions = transactionHistory.get(player.getUuid());
+        if (transactions != null) {
+            playerData.put("transactions", transactions);
+        }
+        
+        if (playerData.isEmpty()) {
+            return true; // Nothing to save
+        }
+        
+        String filename = "economy/players/" + player.getUuid().toString() + ".json";
+        return DataHelper.saveJson(filename, playerData);
+    }
+    
+    /**
+     * Load economy data for a specific player.
+     * 
+     * @param player The player
+     * @return true if load was successful
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean loadPlayerEconomyData(Player player) {
+        String filename = "economy/players/" + player.getUuid().toString() + ".json";
+        
+        Map<String, Object> playerData = (Map<String, Object>) 
+            DataHelper.loadJson(filename, Map.class);
+        
+        if (playerData == null) {
+            return false;
+        }
+        
+        // Load balances
+        if (playerData.containsKey("balances")) {
+            Map<String, Double> playerBalances = (Map<String, Double>) playerData.get("balances");
+            if (playerBalances != null) {
+                balances.put(player.getUuid(), new ConcurrentHashMap<>(playerBalances));
+            }
+        }
+        
+        // Load transactions
+        if (playerData.containsKey("transactions")) {
+            List<Transaction> transactions = (List<Transaction>) playerData.get("transactions");
+            if (transactions != null) {
+                transactionHistory.put(player.getUuid(), new ArrayList<>(transactions));
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Create save data object from current state.
+     */
+    private static EconomySaveData createSaveData() {
+        EconomySaveData saveData = new EconomySaveData();
+        
+        for (Map.Entry<UUID, Map<String, Double>> entry : balances.entrySet()) {
+            saveData.playerBalances.put(entry.getKey().toString(), entry.getValue());
+        }
+        
+        for (Map.Entry<UUID, List<Transaction>> entry : transactionHistory.entrySet()) {
+            saveData.playerTransactions.put(entry.getKey().toString(), entry.getValue());
+        }
+        
+        return saveData;
+    }
 }

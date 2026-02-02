@@ -39,6 +39,9 @@ public class TestPlugin extends JavaPlugin {
         // Register example quests
         registerExampleQuests();
         
+        // Load saved data
+        loadPersistedData();
+        
         // Register ItemHelper dispatcher FIRST (before any player joins)
         org.hytaledevlib.lib.ItemHelper.register(this);
         
@@ -94,6 +97,12 @@ public class TestPlugin extends JavaPlugin {
                     //     LOGGER.at(Level.WARNING).log("✗ Failed to generate block list (returned " + blockCount + ")");
                     // }
                     
+                    // Setup periodic auto-save every 5 minutes (6000 ticks)
+                    org.hytaledevlib.lib.WorldHelper.onTickInterval(world, 6000, (tick) -> {
+                        LOGGER.at(Level.INFO).log("🔄 Auto-saving quest and economy data...");
+                        savePersistedData();
+                    });
+                    
                     // Test all helpers: Wait 100 ticks for player to fully load
                     LOGGER.at(Level.INFO).log("Testing helpers: Will run tests in 100 ticks (5 seconds)...");
                     WorldHelper.waitTicks(world, 100, () -> {
@@ -102,17 +111,13 @@ public class TestPlugin extends JavaPlugin {
                         // testPlayerHelper(world);
                         // testEntityHelper(world);
                         // testUIHelper(world);
-                        // testBlockStateHelper(world);
-                        //testZoneHelper(world);
-                        startTickTests();
-                        LOGGER.at(Level.INFO).log("=== startTickTests() called! ===");
-                        
-                        // Test game mode switching for player Se7enity
-                        testGameModeSwitching(world);
-                        
-                        // Test item entity teleportation
-                        testItemEntityTeleport(world);
                     });
+                    
+                    // Test game mode switching for player Se7inity
+                    testGameModeSwitching(world);
+                    
+                    // Test item entity teleportation
+                    testItemEntityTeleport(world);
                 } catch (Exception e) {
                     LOGGER.at(Level.WARNING).log("Could not capture world: " + e.getMessage());
                 }
@@ -2247,6 +2252,8 @@ public class TestPlugin extends JavaPlugin {
             com.hypixel.hytale.server.core.entity.entities.Player player = 
                 (com.hypixel.hytale.server.core.entity.entities.Player) playerEntity;
             
+            LOGGER.at(Level.FINE).log("[Quest Tracking] Item pickup: " + itemId + " x" + quantity);
+            
             // Check all active quests for this player
             for (org.hytaledevlib.lib.QuestHelper.QuestProgress progress : 
                  org.hytaledevlib.lib.QuestHelper.getActiveQuests(player)) {
@@ -2260,6 +2267,8 @@ public class TestPlugin extends JavaPlugin {
                 for (org.hytaledevlib.lib.QuestHelper.Objective objective : quest.getObjectives()) {
                     if (objective.getType() == org.hytaledevlib.lib.QuestHelper.ObjectiveType.COLLECT 
                         && objective.getTarget().equals(itemId)) {
+                        
+                        LOGGER.at(Level.INFO).log("[Quest Tracking] COLLECT objective matched via ITEM PICKUP");
                         
                         // Update progress
                         org.hytaledevlib.lib.QuestHelper.updateObjectiveProgress(
@@ -2406,6 +2415,70 @@ public class TestPlugin extends JavaPlugin {
         LOGGER.at(Level.INFO).log("  ✓ Zone visits -> VISIT objectives");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Load persisted quest and economy data from disk
+     */
+    private void loadPersistedData() {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Loading persisted data...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Load quest data
+        boolean questsLoaded = org.hytaledevlib.lib.QuestHelper.loadQuestData();
+        if (questsLoaded) {
+            LOGGER.at(Level.INFO).log("✅ Quest progress loaded from disk");
+        } else {
+            LOGGER.at(Level.INFO).log("ℹ️ No quest data found (fresh start)");
+        }
+        
+        // Load economy data
+        boolean economyLoaded = org.hytaledevlib.lib.EconomyHelper.loadEconomyData();
+        if (economyLoaded) {
+            LOGGER.at(Level.INFO).log("✅ Economy data loaded from disk");
+        } else {
+            LOGGER.at(Level.INFO).log("ℹ️ No economy data found (fresh start)");
+        }
+        
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Save all persisted data to disk
+     */
+    private void savePersistedData() {
+        LOGGER.at(Level.INFO).log("💾 Saving quest and economy data...");
+        
+        boolean questsSaved = org.hytaledevlib.lib.QuestHelper.saveQuestData();
+        boolean economySaved = org.hytaledevlib.lib.EconomyHelper.saveEconomyData();
+        
+        if (questsSaved && economySaved) {
+            LOGGER.at(Level.INFO).log("✅ All data saved successfully");
+        } else {
+            if (!questsSaved) {
+                LOGGER.at(Level.WARNING).log("⚠️ Failed to save quest data");
+            }
+            if (!economySaved) {
+                LOGGER.at(Level.WARNING).log("⚠️ Failed to save economy data");
+            }
+        }
+    }
+    
+    @Override
+    protected void shutdown() {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Shutting down HytaleDevLib Test Plugin...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Save all data before shutdown
+        savePersistedData();
+        
+        // Shutdown DataHelper executor
+        org.hytaledevlib.lib.DataHelper.shutdown();
+        
+        LOGGER.at(Level.INFO).log("✅ Plugin shutdown complete");
     }
     
     /**

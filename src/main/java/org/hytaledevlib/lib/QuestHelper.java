@@ -539,4 +539,119 @@ public class QuestHelper {
         
         return totalRequired > 0 ? (totalProgress * 100.0) / totalRequired : 0.0;
     }
+    
+    // ==================== PERSISTENCE ====================
+    
+    /**
+     * Data structure for saving quest progress
+     */
+    private static class QuestSaveData {
+        Map<String, Map<String, QuestProgress>> playerData = new HashMap<>();
+    }
+    
+    /**
+     * Save all quest progress to disk.
+     * 
+     * @return true if save was successful
+     */
+    public static boolean saveQuestData() {
+        QuestSaveData saveData = new QuestSaveData();
+        
+        // Convert UUID keys to strings for JSON serialization
+        for (Map.Entry<UUID, Map<String, QuestProgress>> entry : playerProgress.entrySet()) {
+            saveData.playerData.put(entry.getKey().toString(), entry.getValue());
+        }
+        
+        return DataHelper.saveJson("quests/progress.json", saveData);
+    }
+    
+    /**
+     * Save quest progress asynchronously.
+     */
+    public static void saveQuestDataAsync() {
+        DataHelper.saveJsonAsync("quests/progress.json", createSaveData())
+            .thenAccept(success -> {
+                if (success) {
+                    // Success logged by DataHelper
+                } else {
+                    // Error logged by DataHelper
+                }
+            });
+    }
+    
+    /**
+     * Load all quest progress from disk.
+     * 
+     * @return true if load was successful
+     */
+    public static boolean loadQuestData() {
+        QuestSaveData saveData = DataHelper.loadJson("quests/progress.json", QuestSaveData.class);
+        
+        if (saveData == null || saveData.playerData == null) {
+            return false;
+        }
+        
+        // Clear existing data
+        playerProgress.clear();
+        
+        // Convert string keys back to UUIDs
+        for (Map.Entry<String, Map<String, QuestProgress>> entry : saveData.playerData.entrySet()) {
+            try {
+                UUID playerUuid = UUID.fromString(entry.getKey());
+                playerProgress.put(playerUuid, new ConcurrentHashMap<>(entry.getValue()));
+            } catch (IllegalArgumentException e) {
+                // Invalid UUID, skip this entry
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Save quest progress for a specific player.
+     * 
+     * @param player The player
+     * @return true if save was successful
+     */
+    public static boolean savePlayerQuestData(Player player) {
+        Map<String, QuestProgress> quests = playerProgress.get(player.getUuid());
+        if (quests == null) {
+            return true; // Nothing to save
+        }
+        
+        String filename = "quests/players/" + player.getUuid().toString() + ".json";
+        return DataHelper.saveJson(filename, quests);
+    }
+    
+    /**
+     * Load quest progress for a specific player.
+     * 
+     * @param player The player
+     * @return true if load was successful
+     */
+    @SuppressWarnings("unchecked")
+    public static boolean loadPlayerQuestData(Player player) {
+        String filename = "quests/players/" + player.getUuid().toString() + ".json";
+        
+        Map<String, QuestProgress> quests = (Map<String, QuestProgress>) 
+            DataHelper.loadJson(filename, Map.class);
+        
+        if (quests != null) {
+            playerProgress.put(player.getUuid(), new ConcurrentHashMap<>(quests));
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Create save data object from current state.
+     */
+    private static QuestSaveData createSaveData() {
+        QuestSaveData saveData = new QuestSaveData();
+        for (Map.Entry<UUID, Map<String, QuestProgress>> entry : playerProgress.entrySet()) {
+            saveData.playerData.put(entry.getKey().toString(), entry.getValue());
+        }
+        return saveData;
+    }
 }
