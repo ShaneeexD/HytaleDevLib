@@ -805,4 +805,303 @@ public class ItemHelper {
         
         return teleported;
     }
+    
+    // Item Interaction Methods
+    
+    /**
+     * Functional interface for item interaction handlers.
+     * Provides the player, item stack, and target information for custom logic.
+     */
+    @FunctionalInterface
+    public interface ItemInteractionHandler {
+        /**
+         * Called when the item interaction occurs.
+         * 
+         * @param player The player who triggered the interaction
+         * @param item The item stack being used
+         * @param targetBlock The block being targeted (null if none)
+         * @param targetEntity The entity being targeted (null if none)
+         * @return true to cancel the default interaction, false to allow it
+         */
+        boolean handle(com.hypixel.hytale.server.core.entity.entities.Player player, 
+                       ItemStack item, 
+                       com.hypixel.hytale.math.vector.Vector3i targetBlock, 
+                       com.hypixel.hytale.server.core.entity.Entity targetEntity);
+    }
+    
+    // Internal event listener and handler storage
+    private static final java.util.Map<String, ItemInteractionHandler> rightClickHandlers = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, ItemInteractionHandler> leftClickHandlers = new java.util.concurrent.ConcurrentHashMap<>();
+    private static boolean eventListenerRegistered = false;
+    
+    /**
+     * Register a custom right-click handler for a specific item.
+     * 
+     * @param itemId The item ID to handle (e.g., "hytale:water_bucket")
+     * @param handler The handler function to execute
+     */
+    public static void onItemRightClick(String itemId, ItemInteractionHandler handler) {
+        rightClickHandlers.put(itemId, handler);
+        ensureEventListenerRegistered();
+    }
+    
+    /**
+     * Register a custom left-click handler for a specific item.
+     * 
+     * @param itemId The item ID to handle (e.g., "hytale:diamond_sword")
+     * @param handler The handler function to execute
+     */
+    public static void onItemLeftClick(String itemId, ItemInteractionHandler handler) {
+        leftClickHandlers.put(itemId, handler);
+        ensureEventListenerRegistered();
+    }
+    
+    /**
+     * Unregister a right-click handler for an item.
+     * 
+     * @param itemId The item ID to unregister
+     */
+    public static void unregisterRightClick(String itemId) {
+        rightClickHandlers.remove(itemId);
+    }
+    
+    /**
+     * Unregister a left-click handler for an item.
+     * 
+     * @param itemId The item ID to unregister
+     */
+    public static void unregisterLeftClick(String itemId) {
+        leftClickHandlers.remove(itemId);
+    }
+
+    /**
+     * Backwards-compatible helper: if the dispatcher is not registered yet, remind the caller.
+     * Call {@link #register(com.hypixel.hytale.server.core.plugin.JavaPlugin)} from your plugin.
+     */
+    private static void ensureEventListenerRegistered() {
+        if (eventListenerRegistered) {
+            return;
+        }
+
+        LOGGER.at(Level.WARNING).log("ItemHelper is not registered yet. Call ItemHelper.register(plugin) during plugin setup.");
+    }
+
+    /**
+     * Register ItemHelper's interaction dispatcher with the plugin event registry.
+     * This must be called once from your plugin (e.g. in setup()).
+     */
+    public static void register(com.hypixel.hytale.server.core.plugin.JavaPlugin plugin) {
+        if (plugin == null) {
+            return;
+        }
+
+        if (eventListenerRegistered) {
+            return;
+        }
+
+        try {
+            // Register UseBlockEvent.Pre for right-clicks on blocks (ECS event)
+            plugin.getEventRegistry().registerGlobal(
+                com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent.Pre.class,
+                ItemHelper::onUseBlock
+            );
+            
+            // Register BreakBlockEvent for left-clicks on blocks (ECS event)
+            plugin.getEventRegistry().registerGlobal(
+                com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent.class,
+                ItemHelper::onBreakBlock
+            );
+            
+            eventListenerRegistered = true;
+            LOGGER.at(Level.INFO).log(
+                "ItemHelper registered UseBlockEvent.Pre and BreakBlockEvent dispatchers via plugin "
+                    + plugin.getClass().getName()
+            );
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Failed to register ItemHelper interaction dispatchers: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get the block the player is looking at (simplified version).
+     * Returns null for now - raycasting implementation needs correct API methods.
+     * 
+     * @param player The player to check
+     * @param maxDistance Maximum raycast distance
+     * @return BlockPosition of the targeted block, or null if none found
+     */
+    @Nullable
+    public static com.hypixel.hytale.protocol.BlockPosition getTargetBlock(
+        com.hypixel.hytale.server.core.entity.entities.Player player, 
+        double maxDistance
+    ) {
+        // TODO: Implement raycasting with correct Hytale API
+        // For now, return null - item interactions will work but without target detection
+        return null;
+    }
+    
+    /**
+     * Get the entity the player is looking at (simplified version).
+     * Returns null for now - raycasting implementation needs correct API methods.
+     * 
+     * @param player The player to check
+     * @param maxDistance Maximum raycast distance
+     * @return Entity being targeted, or null if none found
+     */
+    @Nullable
+    public static com.hypixel.hytale.server.core.entity.Entity getTargetEntity(
+        com.hypixel.hytale.server.core.entity.entities.Player player, 
+        double maxDistance
+    ) {
+        // TODO: Implement raycasting with correct Hytale API
+        // For now, return null - item interactions will work but without target detection
+        return null;
+    }
+    
+    /**
+     * IMPORTANT LIMITATION:
+     * The Hytale plugin API does not expose PlayerMouseButtonEvent for air-clicks.
+     * This means we can only detect:
+     * - Right-clicks ON BLOCKS (via BlockInteractEvent)
+     * - Right-clicks ON ENTITIES (via EntityInteractEvent)
+     * 
+     * Right-clicks in AIR (no target) are NOT detectable through the plugin API.
+     * 
+     * Workarounds for air-click abilities:
+     * 1. Use item drop (Q key) - PlayerDropItemEvent
+     * 2. Use hand swap (F key) - PlayerSwapHandItemEvent
+     * 3. Create custom items with interaction configs in JSON
+     */
+    
+    private static void onUseBlock(
+        com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent.Pre event
+    ) {
+        if (event == null || event.isCancelled()) {
+            return;
+        }
+
+        try {
+            LOGGER.at(Level.INFO).log("[ItemHelper] UseBlockEvent.Pre fired (right-click on block)");
+
+            // Get the interaction context
+            com.hypixel.hytale.server.core.entity.InteractionContext context = event.getContext();
+            if (context == null) {
+                return;
+            }
+
+            // Get the item from context
+            ItemStack heldItem = context.getHeldItem();
+            if (heldItem == null || ItemStack.isEmpty(heldItem)) {
+                LOGGER.at(Level.INFO).log("[ItemHelper] No item in hand");
+                return;
+            }
+
+            String itemId = heldItem.getItemId();
+            if (itemId == null) {
+                return;
+            }
+
+            LOGGER.at(Level.INFO).log("[ItemHelper] Item in hand: " + itemId);
+
+            // Get player from entity reference
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> entityRef = context.getEntity();
+            if (entityRef == null || !entityRef.isValid()) {
+                LOGGER.at(Level.INFO).log("[ItemHelper] No valid entity reference");
+                return;
+            }
+
+            // Get player component from entity
+            com.hypixel.hytale.component.CommandBuffer<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> commandBuffer = context.getCommandBuffer();
+            if (commandBuffer == null) {
+                LOGGER.at(Level.INFO).log("[ItemHelper] No command buffer");
+                return;
+            }
+
+            com.hypixel.hytale.server.core.entity.entities.Player player = commandBuffer.getComponent(
+                entityRef, 
+                com.hypixel.hytale.server.core.entity.entities.Player.getComponentType()
+            );
+            
+            if (player == null) {
+                LOGGER.at(Level.INFO).log("[ItemHelper] Entity is not a player");
+                return;
+            }
+
+            com.hypixel.hytale.math.vector.Vector3i targetBlock = event.getTargetBlock();
+
+            ItemInteractionHandler handler = rightClickHandlers.get(itemId);
+
+            if (handler == null) {
+                LOGGER.at(Level.INFO).log(
+                    "[ItemHelper] No right-click handler registered for " + itemId
+                );
+                return;
+            }
+
+            LOGGER.at(Level.INFO).log(
+                "[ItemHelper] Dispatching right-click handler for " + itemId
+            );
+            boolean cancel = handler.handle(player, heldItem, targetBlock, null);
+            if (cancel) {
+                event.setCancelled(true);
+            }
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error dispatching use block event: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private static void onBreakBlock(
+        com.hypixel.hytale.server.core.event.events.ecs.BreakBlockEvent event
+    ) {
+        if (event == null || event.isCancelled()) {
+            return;
+        }
+
+        try {
+            LOGGER.at(Level.INFO).log("[ItemHelper] BreakBlockEvent fired (left-click on block)");
+
+            // Get the item from the event
+            ItemStack heldItem = event.getItemInHand();
+            if (heldItem == null || ItemStack.isEmpty(heldItem)) {
+                LOGGER.at(Level.INFO).log("[ItemHelper] No item in hand");
+                return;
+            }
+
+            String itemId = heldItem.getItemId();
+            if (itemId == null) {
+                return;
+            }
+
+            LOGGER.at(Level.INFO).log("[ItemHelper] Item in hand: " + itemId);
+
+            // Note: BreakBlockEvent is an ECS event, so we need to get the player from the ECS context
+            // For now, we'll skip left-click handlers since we can't easily get the player reference
+            // This is a limitation of the ECS event system
+            
+            com.hypixel.hytale.math.vector.Vector3i targetBlock = event.getTargetBlock();
+
+            ItemInteractionHandler handler = leftClickHandlers.get(itemId);
+
+            if (handler == null) {
+                LOGGER.at(Level.INFO).log(
+                    "[ItemHelper] No left-click handler registered for " + itemId
+                );
+                return;
+            }
+
+            LOGGER.at(Level.INFO).log(
+                "[ItemHelper] Dispatching left-click handler for " + itemId
+            );
+            
+            // TODO: Get player from ECS context - for now we can't call the handler without player
+            LOGGER.at(Level.WARNING).log(
+                "[ItemHelper] Cannot dispatch left-click handler - BreakBlockEvent doesn't provide player reference"
+            );
+            
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).log("Error dispatching break block event: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 }

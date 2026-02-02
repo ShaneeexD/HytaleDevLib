@@ -33,6 +33,18 @@ public class TestPlugin extends JavaPlugin {
     protected void setup() {
         LOGGER.at(Level.INFO).log("Setting up HytaleDevLib Test Plugin...");
         
+        // Setup economy system
+        setupEconomySystem();
+        
+        // Register example quests
+        registerExampleQuests();
+        
+        // Register ItemHelper dispatcher FIRST (before any player joins)
+        org.hytaledevlib.lib.ItemHelper.register(this);
+        
+        // Register item interaction examples
+        registerItemInteractions();
+        
         // Register player join event to capture world reference
         this.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, (event) -> {
             LOGGER.at(Level.INFO).log("=== Player joined world! ===");
@@ -68,11 +80,8 @@ public class TestPlugin extends JavaPlugin {
                     // Register mob loot test (uses DeathHelper callback)
                     registerMobLootTest(world);
                     
-                    // Register fluid detection test
-                    registerFluidDetectionTest(world);
-                    
-                    // Register water placement test
-                    registerWaterPlacementTest(world);
+                    // Setup quest tracking system
+                    setupQuestTracking(world);
                     
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
@@ -112,6 +121,11 @@ public class TestPlugin extends JavaPlugin {
         
         // Register new event tests
         registerEventTests();
+        
+        // Register quest commands
+        this.getCommandRegistry().registerCommand(new QuestStartCommand());
+        this.getCommandRegistry().registerCommand(new QuestListCommand());
+        LOGGER.at(Level.INFO).log("✅ Quest commands registered: /queststart, /questlist");
         
         LOGGER.at(Level.INFO).log("Test plugin setup complete! Waiting for player to join...");
     }
@@ -2065,6 +2079,362 @@ public class TestPlugin extends JavaPlugin {
         
         LOGGER.at(Level.INFO).log("✅ Water placement test registered!");
         LOGGER.at(Level.INFO).log("  ✓ Will place water beneath players in 200 ticks (10 seconds)");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Register item interaction examples using the new ItemHelper system.
+     */
+    private void registerItemInteractions() {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering Item Interactions...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Example: Custom water bucket that places water using our working placeWater method
+        org.hytaledevlib.lib.ItemHelper.onItemRightClick("hytale:water_bucket", 
+            (player, item, targetBlock, targetEntity) -> {
+                if (targetBlock == null) {
+                    org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "No block in range!");
+                    return false; // Don't cancel - let default behavior happen
+                }
+                
+                // Place water at the block position (above the clicked block)
+                com.hypixel.hytale.server.core.universe.world.World world = player.getWorld();
+                int x = targetBlock.getX();
+                int y = targetBlock.getY() + 1; // Place above the clicked block
+                int z = targetBlock.getZ();
+                
+                boolean placed = org.hytaledevlib.lib.BlockHelper.placeWater(world, x, y, z);
+                
+                if (placed) {
+                    org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Custom water placed!");
+                    LOGGER.at(Level.INFO).log("Custom water bucket placed water at (" + x + ", " + y + ", " + z + ")");
+                    return true; // Cancel default bucket behavior
+                } else {
+                    org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "Failed to place water!");
+                    return false; // Let default behavior happen
+                }
+            }
+        );
+        
+        // Example: Cobalt longsword that sends chat message on right-click
+        org.hytaledevlib.lib.ItemHelper.onItemRightClick("Weapon_Longsword_Cobalt", 
+            (player, item, targetBlock, targetEntity) -> {
+                // Send a chat message to the player
+                org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                    "You right-clicked with your cobalt longsword!");
+                
+                LOGGER.at(Level.INFO).log("Cobalt longsword right-click by " + 
+                    org.hytaledevlib.lib.EntityHelper.getName(player));
+                
+                return true; // Cancel default behavior
+            }
+        );
+        
+        // Example: Left-click with any pickaxe to break blocks instantly (for testing)
+        org.hytaledevlib.lib.ItemHelper.onItemLeftClick("hytale:wooden_pickaxe", 
+            (player, item, targetBlock, targetEntity) -> {
+                if (targetBlock != null) {
+                    com.hypixel.hytale.server.core.universe.world.World world = player.getWorld();
+                    int x = targetBlock.getX();
+                    int y = targetBlock.getY();
+                    int z = targetBlock.getZ();
+                    
+                    // Break the block
+                    boolean broken = org.hytaledevlib.lib.BlockHelper.setBlock(world, x, y, z, 0);
+                    
+                    if (broken) {
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                            "Instant break at (" + x + ", " + y + ", " + z + ")");
+                        LOGGER.at(Level.INFO).log("Instant break: " + org.hytaledevlib.lib.EntityHelper.getName(player) + 
+                            " broke block at (" + x + ", " + y + ", " + z + ")");
+                        return true; // Cancel default behavior
+                    }
+                }
+                return false; // Let default behavior happen
+            }
+        );
+        
+        LOGGER.at(Level.INFO).log("✅ Item interactions registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Water bucket: Custom water placement");
+        LOGGER.at(Level.INFO).log("  ✓ Cobalt longsword: Chat message on right-click");
+        LOGGER.at(Level.INFO).log("  ✓ Wooden pickaxe: Instant block break");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Register example quests using QuestHelper
+     */
+    private void registerExampleQuests() {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Registering Example Quests...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Register a simple gathering quest
+        org.hytaledevlib.lib.QuestHelper.Quest gatheringQuest = new org.hytaledevlib.lib.QuestHelper.QuestBuilder("gather_wood")
+            .name("Gather Wood")
+            .description("Collect wood to help build the village")
+            .addCollectObjective("wood", "Wood_Oak_Trunk", 10)
+            .addItemReward("Rock_Gem_Diamond", 1)
+            .addCurrencyReward(50)
+            .repeatable(false)
+            .build();
+        
+        org.hytaledevlib.lib.QuestHelper.registerQuest(gatheringQuest);
+        
+        // Register a hunting quest
+        org.hytaledevlib.lib.QuestHelper.Quest huntingQuest = new org.hytaledevlib.lib.QuestHelper.QuestBuilder("hunt_animals")
+            .name("Hunt Animals")
+            .description("Hunt animals for food")
+            .addKillObjective("kill_cows", "Cow", 5)
+            .addKillObjective("kill_chickens", "Chicken", 3)
+            .addItemReward("Ingredient_Meat_Raw", 8)
+            .addCurrencyReward(100)
+            .repeatable(true)
+            .build();
+        
+        org.hytaledevlib.lib.QuestHelper.registerQuest(huntingQuest);
+        
+        // Register a quest chain (requires first quest)
+        org.hytaledevlib.lib.QuestHelper.Quest advancedQuest = new org.hytaledevlib.lib.QuestHelper.QuestBuilder("advanced_gathering")
+            .name("Advanced Gathering")
+            .description("Now gather rare materials")
+            .addCollectObjective("diamonds", "Rock_Gem_Diamond", 5)
+            .addItemReward("Weapon_Longsword_Cobalt", 1)
+            .addCurrencyReward(500)
+            .prerequisite("gather_wood")
+            .repeatable(false)
+            .build();
+        
+        org.hytaledevlib.lib.QuestHelper.registerQuest(advancedQuest);
+        
+        // Register completion callbacks
+        org.hytaledevlib.lib.QuestHelper.onQuestComplete("gather_wood", (player, questId) -> {
+            org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "§a§lQuest Complete! You've finished: Gather Wood");
+            LOGGER.at(Level.INFO).log(org.hytaledevlib.lib.EntityHelper.getName(player) + " completed quest: " + questId);
+        });
+        
+        org.hytaledevlib.lib.QuestHelper.onQuestComplete("hunt_animals", (player, questId) -> {
+            org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "§a§lQuest Complete! You've finished: Hunt Animals");
+        });
+        
+        org.hytaledevlib.lib.QuestHelper.onQuestComplete("advanced_gathering", (player, questId) -> {
+            org.hytaledevlib.lib.PlayerHelper.sendMessage(player, "§a§lQuest Complete! You've finished: Advanced Gathering");
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Example quests registered!");
+        LOGGER.at(Level.INFO).log("  ✓ Gather Wood - Collect 10 oak logs");
+        LOGGER.at(Level.INFO).log("  ✓ Hunt Animals - Kill cows and chickens");
+        LOGGER.at(Level.INFO).log("  ✓ Advanced Gathering - Quest chain requiring Gather Wood");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Setup automatic quest tracking by hooking into game events
+     */
+    private void setupQuestTracking(com.hypixel.hytale.server.core.universe.world.World world) {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Setting up Quest Tracking...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Track item pickups for COLLECT objectives
+        org.hytaledevlib.lib.EventHelper.onItemPickup(this, (itemId, quantity, playerEntity) -> {
+            if (!(playerEntity instanceof com.hypixel.hytale.server.core.entity.entities.Player)) return;
+            
+            com.hypixel.hytale.server.core.entity.entities.Player player = 
+                (com.hypixel.hytale.server.core.entity.entities.Player) playerEntity;
+            
+            // Check all active quests for this player
+            for (org.hytaledevlib.lib.QuestHelper.QuestProgress progress : 
+                 org.hytaledevlib.lib.QuestHelper.getActiveQuests(player)) {
+                
+                org.hytaledevlib.lib.QuestHelper.Quest quest = 
+                    org.hytaledevlib.lib.QuestHelper.getQuest(progress.getQuestId());
+                
+                if (quest == null) continue;
+                
+                // Check each objective
+                for (org.hytaledevlib.lib.QuestHelper.Objective objective : quest.getObjectives()) {
+                    if (objective.getType() == org.hytaledevlib.lib.QuestHelper.ObjectiveType.COLLECT 
+                        && objective.getTarget().equals(itemId)) {
+                        
+                        // Update progress
+                        org.hytaledevlib.lib.QuestHelper.updateObjectiveProgress(
+                            player, quest.getId(), objective.getId(), quantity
+                        );
+                        
+                        int currentProgress = progress.getProgress(objective.getId());
+                        int required = objective.getRequiredAmount();
+                        
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                            "§e[Quest] " + quest.getName() + ": " + 
+                            Math.min(currentProgress, required) + "/" + required + " " + itemId);
+                        
+                        LOGGER.at(Level.INFO).log("[Quest] " + org.hytaledevlib.lib.EntityHelper.getName(player) + 
+                            " progress on " + quest.getName() + ": " + currentProgress + "/" + required);
+                    }
+                }
+            }
+        });
+        
+        // Track entity kills for KILL objectives
+        org.hytaledevlib.lib.DeathHelper.onEntityDeath(world, (death) -> {
+            // Check if killed by a player
+            if (!death.isKillerPlayer()) return;
+            
+            // Get killer entity reference
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> killerRef = death.getKiller();
+            if (killerRef == null || !killerRef.isValid()) return;
+            
+            // Get Player component from the killer
+            com.hypixel.hytale.server.core.entity.entities.Player player = 
+                death.getStore().getComponent(killerRef, com.hypixel.hytale.server.core.entity.entities.Player.getComponentType());
+            
+            if (player == null) return;
+            
+            // Get the entity that died
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> deadRef = death.getEntityRef();
+            String entityType = death.getEntityName(); // Use the helper method from DeathHelper
+            
+            // Check all active quests for this player
+            for (org.hytaledevlib.lib.QuestHelper.QuestProgress progress : 
+                 org.hytaledevlib.lib.QuestHelper.getActiveQuests(player)) {
+                
+                org.hytaledevlib.lib.QuestHelper.Quest quest = 
+                    org.hytaledevlib.lib.QuestHelper.getQuest(progress.getQuestId());
+                
+                if (quest == null) continue;
+                
+                // Check each objective
+                for (org.hytaledevlib.lib.QuestHelper.Objective objective : quest.getObjectives()) {
+                    if (objective.getType() == org.hytaledevlib.lib.QuestHelper.ObjectiveType.KILL 
+                        && objective.getTarget().equals(entityType)) {
+                        
+                        // Update progress
+                        org.hytaledevlib.lib.QuestHelper.updateObjectiveProgress(
+                            player, quest.getId(), objective.getId(), 1
+                        );
+                        
+                        int currentProgress = progress.getProgress(objective.getId());
+                        int required = objective.getRequiredAmount();
+                        
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                            "§e[Quest] " + quest.getName() + ": " + 
+                            Math.min(currentProgress, required) + "/" + required + " " + entityType + " killed");
+                    }
+                }
+            }
+        });
+        
+        // Track block breaking for BREAK_BLOCK objectives
+        org.hytaledevlib.lib.EcsEventHelper.onBlockBreak(world, (position, blockTypeId, playerEntity) -> {
+            if (!(playerEntity instanceof com.hypixel.hytale.server.core.entity.entities.Player)) return;
+            
+            com.hypixel.hytale.server.core.entity.entities.Player player = 
+                (com.hypixel.hytale.server.core.entity.entities.Player) playerEntity;
+            
+            // Check all active quests for this player
+            for (org.hytaledevlib.lib.QuestHelper.QuestProgress progress : 
+                 org.hytaledevlib.lib.QuestHelper.getActiveQuests(player)) {
+                
+                org.hytaledevlib.lib.QuestHelper.Quest quest = 
+                    org.hytaledevlib.lib.QuestHelper.getQuest(progress.getQuestId());
+                
+                if (quest == null) continue;
+                
+                // Check each objective
+                for (org.hytaledevlib.lib.QuestHelper.Objective objective : quest.getObjectives()) {
+                    if (objective.getType() == org.hytaledevlib.lib.QuestHelper.ObjectiveType.BREAK_BLOCK 
+                        && objective.getTarget().equals(blockTypeId)) {
+                        
+                        // Update progress
+                        org.hytaledevlib.lib.QuestHelper.updateObjectiveProgress(
+                            player, quest.getId(), objective.getId(), 1
+                        );
+                        
+                        int currentProgress = progress.getProgress(objective.getId());
+                        int required = objective.getRequiredAmount();
+                        
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                            "§e[Quest] " + quest.getName() + ": " + 
+                            Math.min(currentProgress, required) + "/" + required + " " + blockTypeId + " broken");
+                    }
+                }
+            }
+        });
+        
+        // Track zone visits for VISIT objectives
+        org.hytaledevlib.lib.EcsEventHelper.onZoneDiscovery(world, (zoneName, playerEntity) -> {
+            if (!(playerEntity instanceof com.hypixel.hytale.server.core.entity.entities.Player)) return;
+            
+            com.hypixel.hytale.server.core.entity.entities.Player player = 
+                (com.hypixel.hytale.server.core.entity.entities.Player) playerEntity;
+            
+            // Check all active quests for this player
+            for (org.hytaledevlib.lib.QuestHelper.QuestProgress progress : 
+                 org.hytaledevlib.lib.QuestHelper.getActiveQuests(player)) {
+                
+                org.hytaledevlib.lib.QuestHelper.Quest quest = 
+                    org.hytaledevlib.lib.QuestHelper.getQuest(progress.getQuestId());
+                
+                if (quest == null) continue;
+                
+                // Check each objective
+                for (org.hytaledevlib.lib.QuestHelper.Objective objective : quest.getObjectives()) {
+                    if (objective.getType() == org.hytaledevlib.lib.QuestHelper.ObjectiveType.VISIT 
+                        && objective.getTarget().equals(zoneName)) {
+                        
+                        // Update progress
+                        org.hytaledevlib.lib.QuestHelper.updateObjectiveProgress(
+                            player, quest.getId(), objective.getId(), 1
+                        );
+                        
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(player, 
+                            "§e[Quest] " + quest.getName() + ": Visited " + zoneName);
+                    }
+                }
+            }
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Quest tracking configured!");
+        LOGGER.at(Level.INFO).log("  ✓ Item pickups -> COLLECT objectives");
+        LOGGER.at(Level.INFO).log("  ✓ Entity kills -> KILL objectives");
+        LOGGER.at(Level.INFO).log("  ✓ Block breaking -> BREAK_BLOCK objectives");
+        LOGGER.at(Level.INFO).log("  ✓ Zone visits -> VISIT objectives");
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("");
+    }
+    
+    /**
+     * Setup economy system using EconomyHelper
+     */
+    private void setupEconomySystem() {
+        LOGGER.at(Level.INFO).log("========================================");
+        LOGGER.at(Level.INFO).log("Setting up Economy System...");
+        LOGGER.at(Level.INFO).log("========================================");
+        
+        // Register custom currencies
+        org.hytaledevlib.lib.EconomyHelper.registerCurrency("coins", "Coin", "$", 100.0);
+        org.hytaledevlib.lib.EconomyHelper.registerCurrency("gems", "Gem", "💎", 0.0);
+        
+        org.hytaledevlib.lib.EconomyHelper.setDefaultCurrency("coins");
+        
+        // Register transaction callback for logging
+        org.hytaledevlib.lib.EconomyHelper.onTransaction((player, transaction) -> {
+            String playerName = org.hytaledevlib.lib.EntityHelper.getName(player);
+            LOGGER.at(Level.INFO).log("[Economy] " + playerName + " - " + 
+                transaction.getType() + ": " + 
+                org.hytaledevlib.lib.EconomyHelper.formatBalance(transaction.getCurrencyId(), transaction.getAmount()) + 
+                " (" + transaction.getReason() + ")");
+        });
+        
+        LOGGER.at(Level.INFO).log("✅ Economy system configured!");
+        LOGGER.at(Level.INFO).log("  ✓ Default currency: Coins ($) - Starting balance: $100.00");
+        LOGGER.at(Level.INFO).log("  ✓ Secondary currency: Gems (💎) - Starting balance: 0");
+        LOGGER.at(Level.INFO).log("  ✓ Transaction logging enabled");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
     }
