@@ -97,6 +97,9 @@ tasks.named('processResources') {
 tasks.named('shadowJar') {
     archiveClassifier.set('')
     mergeServiceFiles()
+    // Do not create a fat jar from runtimeClasspath. The server runtime
+    // (HytaleServer and native libs) must stay external; only ship plugin code.
+    configurations = []
 }
 
 // Ensure the shaded jar is produced during a normal build.

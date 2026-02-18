@@ -16,7 +16,7 @@ This is a very early work in progress and there is a lot planned, feel free to m
 
 ## Features
 
-HytaleDevLib provides 20 main helper classes that simplify Hytale plugin development:
+HytaleDevLib provides 22 main helper classes that simplify Hytale plugin development:
 
 ### EventHelper
 - Simplified event registration for item drops, pickups, and crafting **with player entity access**
@@ -76,11 +76,24 @@ HytaleDevLib provides 20 main helper classes that simplify Hytale plugin develop
 - **Name-based block operations** - Minecraft-style block referencing
 - **Dynamic block ID resolution** - Uses game's native asset system for automatic compatibility
 - Get and set blocks at any position with automatic client sync
+- **Fluid support** - Set, place, and remove fluids (water/lava) programmatically
+- **Fluid client sync** - Fluid changes are pushed to clients immediately
 - Fill or replace blocks in regions
 - Find blocks by type within radius
 - Count blocks in areas
 - World editing utilities
 - Works with modded blocks automatically
+
+### QuestHelper
+- **Quest data models** - Build structured quests with objective/reward definitions
+- **Objective tracking structures** - Define objective type, target, and required amount
+- **Prerequisite support** - Build quest chains and unlock progression paths
+- **Repeatable quest patterns** - Support looping/daily quest flows
+
+### EconomyHelper
+- **Currency operations** - Add, remove, and check balances through helper methods
+- **Transaction utilities** - Apply costs/payouts in gameplay systems
+- **Shop and reward foundation** - Reusable economy flows for vendors, quests, and upgrades
 
 ### InventoryHelper 
 - Item management: give, remove, count items with quantity support
