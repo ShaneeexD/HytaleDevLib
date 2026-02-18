@@ -85,6 +85,8 @@ public class TestPlugin extends JavaPlugin {
                     
                     // Setup quest tracking system
                     setupQuestTracking(world);
+
+                    registerWaterPlacementTest(world);
                     
                     // Generate block list for wiki
                     // LOGGER.at(Level.INFO).log("Generating block list for wiki...");
@@ -2043,7 +2045,7 @@ public class TestPlugin extends JavaPlugin {
     }
     
     /**
-     * Register water placement test - places water beneath the player after 200 ticks.
+     * Register water placement test - places a 3x3 water area beneath each player after 200 ticks.
      */
     private void registerWaterPlacementTest(World world) {
         LOGGER.at(Level.INFO).log("========================================");
@@ -2052,7 +2054,7 @@ public class TestPlugin extends JavaPlugin {
         
         // Wait 200 ticks before placing water
         org.hytaledevlib.lib.WorldHelper.waitTicks(world, 200, () -> {
-            LOGGER.at(Level.INFO).log("💧 Placing water beneath players...");
+            LOGGER.at(Level.INFO).log("💧 Placing 3x3 water beneath players...");
             
             // Find all players
             for (com.hypixel.hytale.server.core.entity.Entity entity : org.hytaledevlib.lib.EntityHelper.getEntities(world)) {
@@ -2064,26 +2066,42 @@ public class TestPlugin extends JavaPlugin {
                         continue;
                     }
                     
-                    // Place water one block beneath the player
-                    int waterX = (int) playerPos.getX();
+                    // Place water one block beneath the player in a 3x3 area centered on player X/Z.
+                    int centerX = (int) playerPos.getX();
                     int waterY = (int) playerPos.getY() - 1;
-                    int waterZ = (int) playerPos.getZ();
-                    
-                    boolean placed = org.hytaledevlib.lib.BlockHelper.placeWater(world, waterX, waterY, waterZ);
-                    
-                    if (placed) {
-                        LOGGER.at(Level.INFO).log("✅ [" + playerName + "] Placed water at (" + waterX + ", " + waterY + ", " + waterZ + ")");
-                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Water placed beneath you!");
+                    int centerZ = (int) playerPos.getZ();
+
+                    int placedCount = 0;
+                    int failedCount = 0;
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            int waterX = centerX + dx;
+                            int waterZ = centerZ + dz;
+                            boolean placed = org.hytaledevlib.lib.BlockHelper.placeWater(world, waterX, waterY, waterZ);
+                            if (placed) {
+                                placedCount++;
+                            } else {
+                                failedCount++;
+                            }
+                        }
+                    }
+
+                    if (placedCount > 0) {
+                        LOGGER.at(Level.INFO).log("✅ [" + playerName + "] Placed " + placedCount + "/9 water blocks centered at (" + centerX + ", " + waterY + ", " + centerZ + ")");
+                        if (failedCount > 0) {
+                            LOGGER.at(Level.WARNING).log("⚠ [" + playerName + "] Failed to place " + failedCount + "/9 water blocks in 3x3 area");
+                        }
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Placed " + placedCount + "/9 water blocks beneath you.");
                     } else {
-                        LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place water at (" + waterX + ", " + waterY + ", " + waterZ + ")");
-                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Failed to place water!");
+                        LOGGER.at(Level.WARNING).log("❌ [" + playerName + "] Failed to place any water in 3x3 area centered at (" + centerX + ", " + waterY + ", " + centerZ + ")");
+                        org.hytaledevlib.lib.PlayerHelper.sendMessage(entity, "Failed to place water in 3x3 area.");
                     }
                 }
             }
         });
         
         LOGGER.at(Level.INFO).log("✅ Water placement test registered!");
-        LOGGER.at(Level.INFO).log("  ✓ Will place water beneath players in 200 ticks (10 seconds)");
+        LOGGER.at(Level.INFO).log("  ✓ Will place a 3x3 water area beneath players in 200 ticks (10 seconds)");
         LOGGER.at(Level.INFO).log("========================================");
         LOGGER.at(Level.INFO).log("");
     }

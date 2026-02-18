@@ -318,9 +318,9 @@ public class BlockHelper {
             // Try to create and send a fluid update packet
             // The exact packet class/constructor may vary, so we catch any errors
             Object packet = createFluidPacket(x, y, z, fluidId, level);
-            if (packet != null && packet instanceof com.hypixel.hytale.protocol.Packet) {
+            if (packet instanceof com.hypixel.hytale.protocol.ToClientPacket) {
                 System.out.println("[BlockHelper] Sending fluid update packet for fluid ID " + fluidId + " at (" + x + ", " + y + ", " + z + ")");
-                world.getNotificationHandler().sendPacketIfChunkLoaded((com.hypixel.hytale.protocol.Packet) packet, x, z);
+                world.getNotificationHandler().sendPacketIfChunkLoaded((com.hypixel.hytale.protocol.ToClientPacket) packet, x, z);
                 System.out.println("[BlockHelper] Packet sent successfully");
             } else {
                 System.out.println("[BlockHelper] WARNING: Could not create fluid packet (packet was null or not a Packet instance)");
@@ -335,6 +335,13 @@ public class BlockHelper {
      * Attempt to create a fluid update packet using reflection to handle API changes.
      */
     private static Object createFluidPacket(int x, int y, int z, int fluidId, byte level) {
+        // Preferred path: a single-cell fluid update packet.
+        try {
+            return new com.hypixel.hytale.protocol.packets.world.ServerSetFluid(x, y, z, fluidId, level);
+        } catch (Throwable ignored) {
+            // Fallback below for environments where ServerSetFluid shape differs.
+        }
+
         try {
             // Try SetFluids packet (bulk update with single change)
             Class<?> setFluidsClass = Class.forName("com.hypixel.hytale.protocol.packets.world.SetFluids");
@@ -371,7 +378,7 @@ public class BlockHelper {
                 
                 byte[] data = baos.toByteArray();
                 
-                System.out.println("[BlockHelper] Creating SetFluids packet with byte array (length: " + data.length + ")");
+                System.out.println("[BlockHelper] Falling back to SetFluids packet with byte array (length: " + data.length + ")");
                 
                 return setFluidsClass.getConstructor(int.class, int.class, int.class, byte[].class)
                     .newInstance(chunkX, chunkY, chunkZ, data);
@@ -381,7 +388,7 @@ public class BlockHelper {
                 return null;
             }
         } catch (ClassNotFoundException e) {
-            System.out.println("[BlockHelper] SetFluids class not found");
+            System.out.println("[BlockHelper] SetFluids fallback class not found");
             return null;
         } catch (Exception e) {
             System.out.println("[BlockHelper] Error creating packet: " + e.getMessage());
